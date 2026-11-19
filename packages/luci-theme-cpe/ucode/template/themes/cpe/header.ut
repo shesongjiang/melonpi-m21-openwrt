@@ -17,8 +17,8 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="darkreader-lock">
 	<title>{{ striptags(`${boardinfo.hostname ?? '?'}${dispatched?.title ? ` | ${_(dispatched.title)}` : ''}`) }}</title>
-	<link rel="stylesheet" href="{{ media }}/foundation.css?v=20260906-2">
-	<link rel="stylesheet" href="{{ media }}/cascade.css?v=20260906-1">
+	<link rel="stylesheet" href="{{ media }}/foundation.css?v=20261119-1">
+	<link rel="stylesheet" href="{{ media }}/cascade.css?v=20261119-1">
 	<link rel="icon" href="{{ media }}/images/doge-icons8.png" type="image/png">
 	{% if (node?.css): %}
 	<link rel="stylesheet" href="{{ resource }}/{{ node.css }}">
@@ -47,12 +47,12 @@
 			</div>
 		</aside>
 
-		<div id="cpe-backdrop"></div>
+		<div id="cpe-backdrop" role="button" tabindex="0" aria-label="{{ _('Close navigation') }}"></div>
 
 		<div id="cpe-workspace">
 			<header id="cpe-topbar">
-				<button id="cpe-nav-toggle" type="button" title="{{ _('Navigation') }}" aria-label="{{ _('Navigation') }}">
-					<svg aria-hidden="true"><use href="{{ media }}/icons.svg#menu"></use></svg>
+				<button id="cpe-nav-toggle" type="button" title="{{ _('Navigation') }}" aria-label="{{ _('Navigation') }}" aria-controls="cpe-sidebar" aria-expanded="false">
+					<svg aria-hidden="true"><use href="{{ media }}/icons.svg?v=20261119#menu"></use></svg>
 				</button>
 				<div class="cpe-page-title">
 					<span>{{ _(dispatched?.title ?? 'NetDogg') }}</span>
@@ -72,7 +72,7 @@
 				<section class="cpe-password-card" role="alert">
 					<header class="cpe-password-card__header">
 						<span class="cpe-password-card__icon" aria-hidden="true">
-						<svg><use href="{{ media }}/icons.svg#shield"></use></svg>
+						<svg><use href="{{ media }}/icons.svg?v=20261119#shield"></use></svg>
 						</span>
 						<h2>{{ _('No password set!') }}</h2>
 					</header>

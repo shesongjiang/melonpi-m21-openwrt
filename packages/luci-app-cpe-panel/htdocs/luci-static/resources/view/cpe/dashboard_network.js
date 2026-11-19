@@ -12,7 +12,7 @@ function ensureStylesheet() {
 	const link = document.createElement('link');
 	link.id = 'cpe-overview-styles';
 	link.rel = 'stylesheet';
-	link.href = L.resource('view/cpe/overview.css');
+	link.href = L.resource('view/cpe/overview.css') + '?v=20261119';
 	document.head.appendChild(link);
 }
 
@@ -52,13 +52,87 @@ const callNetworkHealth = rpc.declare({
  object: 'cpe_network', method: 'status', expect: { '': {} }
 });
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const XLINK_NS = 'http://www.w3.org/1999/xlink';
+
+/* E() creates HTML elements via document.createElement(), which puts <svg> and
+   <use> into the HTML namespace and makes them invisible. Every SVG node has to
+   be built with createElementNS(). */
+function svgNode(tag, attributes, children) {
+	const node = document.createElementNS(SVG_NS, tag);
+
+	if (attributes) {
+		Object.keys(attributes).forEach((key) => {
+			const value = attributes[key];
+
+			if (value == null || value === false)
+				return;
+
+			if (key === 'href')
+				node.setAttributeNS(XLINK_NS, 'xlink:href', String(value));
+
+			node.setAttribute(key, String(value));
+		});
+	}
+
+	(children || []).forEach((child) => {
+		if (child != null)
+			node.appendChild(child);
+	});
+
+	return node;
+}
+
 function icon(name) {
-	return E('svg', {
+	return svgNode('svg', {
 		'class': 'cpe-icon',
 		'aria-hidden': 'true'
 	}, [
-		E('use', { 'href': L.resource('view/cpe/icons.svg') + '#' + name })
+		svgNode('use', { 'href': L.resource('view/cpe/icons.svg') + '?v=20261119#' + (name || 'box') })
 	]);
+}
+
+/* Label -> icon matching. Keys are matched against the translated label, so both
+   the English source string and the Chinese translation resolve to the same
+   symbol. The first matching rule wins: keep specific rules above generic ones. */
+const factIconRules = [
+	[ /(客户端|client|接入设备)/i, 'users' ],
+	[ /(sim|uim|卡状态)/i, 'sim' ],
+	[ /(无线|wireless|wifi|ssid)/i, 'wifi' ],
+	[ /(网络类型|network\s*type|制式|rat)/i, 'radio' ],
+	[ /(射频|radio|频段|band)/i, 'radio' ],
+	[ /(信号|signal|csq|rsrp|rssi)/i, 'signal' ],
+	[ /(运营商|operator|carrier|isp)/i, 'globe' ],
+	[ /(策略|policy|rule)/i, 'settings' ],
+	[ /(温度|temperature|热|thermal)/i, 'thermometer' ],
+	[ /(风扇|fan|cooling)/i, 'fan' ],
+	[ /(内存|memory|ram)/i, 'memory' ],
+	[ /(负载|load|cpu)/i, 'activity' ],
+	[ /(固件|firmware|版本|version|release)/i, 'package' ],
+	[ /(内核|kernel)/i, 'terminal' ],
+	[ /(运行时间|uptime|时间|time)/i, 'clock' ],
+	[ /(主机名|hostname)/i, 'server' ],
+	[ /(型号|model|模块|module)/i, 'cpu' ],
+	[ /(网关|gateway)/i, 'router' ],
+	[ /(mac|物理地址)/i, 'cpu' ],
+	[ /(ipv4|ipv6|ip\s*地址|address|地址)/i, 'globe' ],
+	[ /(协议|protocol|pppoe|dhcp)/i, 'link' ],
+	[ /(接口|interface|端口|port)/i, 'network' ],
+	[ /(连接状态|connection|状态|status)/i, 'activity' ],
+	[ /(网络|network)/i, 'network' ]
+];
+
+function factIcon(label) {
+	const value = String(label == null ? '' : label).trim();
+
+	if (!value)
+		return null;
+
+	for (const rule of factIconRules)
+		if (rule[0].test(value))
+			return rule[1];
+
+	return null;
 }
 
 function text(value, fallback) {
@@ -68,10 +142,86 @@ function text(value, fallback) {
 	return String(value);
 }
 
-function firstAddress(addresses) {
-	return Array.isArray(addresses) && addresses.length
-		? String(addresses[0]).replace(/\/\d+$/, '')
-		: '-';
+function soft(promise, fallback) {
+	return Promise.resolve(promise).then(
+		(value) => ({ ok: true, value: value }),
+		() => ({ ok: false, value: fallback })
+	);
+}
+
+function valueOf(entry, fallback) {
+	if (entry && typeof entry === 'object' && 'ok' in entry)
+		return entry.ok ? entry.value : fallback;
+
+	return entry == null ? fallback : entry;
+}
+
+function failed(entry) {
+	return !!(entry && typeof entry === 'object' && entry.ok === false);
+}
+
+function detachObservers(node) {
+	if (!node || node.nodeType !== 1)
+		return;
+
+	if (node._linkObserver) {
+		node._linkObserver.disconnect();
+		node._linkObserver = null;
+	}
+
+	Array.from(node.children || []).forEach(detachObservers);
+}
+
+function syncAttributes(current, next) {
+	Array.from(next.attributes).forEach((attr) => {
+		if (current.getAttribute(attr.name) !== attr.value)
+			current.setAttribute(attr.name, attr.value);
+	});
+
+	Array.from(current.attributes).forEach((attr) => {
+		if (!next.hasAttribute(attr.name))
+			current.removeAttribute(attr.name);
+	});
+}
+
+function patchNode(current, next) {
+	if (!current || !next)
+		return next;
+
+	if (current.nodeType !== next.nodeType || current.nodeName !== next.nodeName) {
+		detachObservers(current);
+		current.replaceWith(next);
+		return next;
+	}
+
+	if (current.nodeType === 3) {
+		if (current.nodeValue !== next.nodeValue)
+			current.nodeValue = next.nodeValue;
+
+		return current;
+	}
+
+	if (current.nodeType !== 1)
+		return current;
+
+	syncAttributes(current, next);
+
+	const currentChildren = Array.from(current.childNodes);
+	const nextChildren = Array.from(next.childNodes);
+
+	for (let i = 0; i < nextChildren.length; i++) {
+		if (i < currentChildren.length)
+			patchNode(currentChildren[i], nextChildren[i]);
+		else
+			current.appendChild(nextChildren[i]);
+	}
+
+	for (let i = nextChildren.length; i < currentChildren.length; i++) {
+		detachObservers(currentChildren[i]);
+		current.removeChild(currentChildren[i]);
+	}
+
+	return current;
 }
 
 function ipv4ToInt(address) {
@@ -176,23 +326,24 @@ function modemSignal(entries) {
 return view.extend({
 	load() {
 		return Promise.all([
-			L.resolveDefault(callSystemBoard(), {}),
-			L.resolveDefault(callSystemInfo(), {}),
-			L.resolveDefault(network.getWANNetworks(), []),
-			L.resolveDefault(network.getWifiDevices(), []),
-			L.resolveDefault(network.getWifiNetworks(), []),
-			L.resolveDefault(network.getHostHints(), null),
-			L.resolveDefault(callDHCPLeases(), {}),
-			L.resolveDefault(callModemInfo(), {}),
-			L.resolveDefault(callFanInfo(), {}),
-			L.resolveDefault(network.getNetwork('lan'), null),
-			L.resolveDefault(callMwan3Status(), {}),
-			L.resolveDefault(uci.load('mwan3'), null)
+			soft(callSystemBoard(), {}),
+			soft(callSystemInfo(), {}),
+			soft(network.getWANNetworks(), []),
+			soft(network.getWifiDevices(), []),
+			soft(network.getWifiNetworks(), []),
+			soft(network.getHostHints(), null),
+			soft(callDHCPLeases(), {}),
+			soft(callModemInfo(), {}),
+			soft(callFanInfo(), {}),
+			soft(network.getNetwork('lan'), null),
+			soft(callMwan3Status(), {}),
+			soft(uci.load('mwan3'), null)
 		]).then((data) => {
-			const wifiNetworks = data[4] || [];
+			const wifiNetworks = valueOf(data[4], []) || [];
 			return Promise.all(wifiNetworks.map((wifi) =>
-				L.resolveDefault(wifi.getAssocList(), [])
-			)).then((associations) => Promise.all([associations, L.resolveDefault(callNetworkHealth(), {})]).then((extra) => data.concat(extra)));
+				soft(wifi.getAssocList(), [])
+			)).then((associations) => soft(callNetworkHealth(), {}).then((health) =>
+				data.concat([associations, health])));
 		});
 	},
 
@@ -211,6 +362,58 @@ return view.extend({
 		]);
 	},
 
+	errorBody(message) {
+		return E('div', { 'class': 'cpe-card-error' }, [
+			E('p', {}, [ message ]),
+			E('button', {
+				'type': 'button',
+				'class': 'cpe-retry',
+				'click': (ev) => {
+					ev.preventDefault();
+					this.refresh();
+				}
+			}, [ _('Retry') ])
+		]);
+	},
+
+	errorCard(title, iconName, className, message) {
+		return this.card(title, iconName, [ this.errorBody(message) ], {
+			className: className,
+			badge: E('span', { 'class': 'cpe-badge is-error' }, [ _('Error') ])
+		});
+	},
+
+	refresh() {
+		return network.flushCache()
+			.then(() => this.load())
+			.then((updated) => {
+				const root = document.querySelector('.cpe-dashboard');
+
+				if (!root)
+					return;
+
+				patchNode(root, this.renderDashboard(updated));
+				this.bindFlow(root);
+			});
+	},
+
+	bindFlow(root) {
+		const flow = root.querySelector('.cpe-mwan-flow');
+
+		if (!flow)
+			return;
+
+		if (typeof ResizeObserver !== 'undefined') {
+			if (!flow._linkObserver)
+				flow._linkObserver = new ResizeObserver(() => this.drawMwanFlowLinks(flow));
+
+			flow._linkObserver.disconnect();
+			flow._linkObserver.observe(flow);
+		}
+
+		this.drawMwanFlowLinks(flow);
+	},
+
 	badge(label, online) {
 		return E('span', {
 			'class': 'cpe-badge ' + (online ? 'is-online' : 'is-offline')
@@ -218,10 +421,17 @@ return view.extend({
 	},
 
 	rows(items) {
-		return E('dl', { 'class': 'cpe-facts' }, items.map((item) => [
-			E('dt', {}, [ item[0] ]),
-			E('dd', {}, [ item[1] ])
-		]).flat());
+		return E('dl', { 'class': 'cpe-facts' }, items.map((item) => {
+			const iconName = item[2] !== undefined ? item[2] : factIcon(item[0]);
+			const term = iconName
+				? [ icon(iconName), E('span', {}, [ item[0] ]) ]
+				: [ item[0] ];
+
+			return [
+				E('dt', {}, term),
+				E('dd', {}, [ item[1] ])
+			];
+		}).flat());
 	},
 
 	link(label, path, style) {
@@ -243,7 +453,7 @@ return view.extend({
 			/^(wwan|modem|cell|lte|nr|5g|4g|qmi|mbim|ncm|rndis|rmnet|usb)/.test(name);
 	},
 
-	getUplinkRoutes(wans, mwanData, health) {
+	getUplinkRoutes(wans, mwanData, health, healthKnown) {
 		const mwanInterfaces = mwanData && mwanData.interfaces ? mwanData.interfaces : {};
 		const mwanPolicies = mwanData && mwanData.policies && mwanData.policies.ipv4
 			? mwanData.policies.ipv4 : {};
@@ -308,9 +518,15 @@ return view.extend({
 		const route = (kind, name) => {
 			const net = name ? networkByName[name] : null;
 			const state = name ? mwanInterfaces[name] : null;
+			const probe = name && health && health.interfaces ? health.interfaces[name] : null;
 			let online = false;
 
-			if (state) {
+			if (name && healthKnown) {
+				// A successful end-to-end probe is authoritative. MWAN3 may still
+				// report "unknown" while its tracking has not converged yet.
+				online = !!(probe && probe.internet === true);
+			}
+			else if (state) {
 				online = state.enabled !== false && (state.status === 'online' ||
 					(state.status === 'notracking' && state.up === true));
 			}
@@ -318,17 +534,16 @@ return view.extend({
 				online = net.isUp();
 			}
 
-            // Interface addresses and carrier state do not prove Internet access.
-            online = online && !!(health && health.interfaces && health.interfaces[name] && health.interfaces[name].internet);
-
 			return {
 				kind: kind,
 				name: name || null,
 				network: net,
 				online: online,
+				unknown: !!name && !healthKnown,
 				active: online && !!name && policyWeights[name] > 0,
 				percent: name ? policyWeights[name] || 0 : 0,
-				tracked: !!state
+				tracked: !!state,
+				judged: !!(state && state.status && state.status !== 'unknown')
 			};
 		};
 
@@ -366,17 +581,19 @@ return view.extend({
 		const bridge = route.kind === 'bridge';
 		let stateLabel = _('Unavailable');
 
-		if (route.online && route.active)
+		if (route.unknown)
+			stateLabel = _('Status unknown');
+		else if (route.online && route.active)
 			stateLabel = route.percent > 0
 				? '%s · %d%%'.format(_('Active path'), Math.round(route.percent))
 				: _('Active path');
 		else if (route.online)
 			stateLabel = _('Standby online');
-		else if (route.name && route.tracked)
+		else if (route.name && route.judged)
 			stateLabel = _('MWAN3 offline');
 
 		return E('a', {
-			'class': 'cpe-uplink-route ' + (route.online ? 'is-online' : 'is-offline') +
+			'class': 'cpe-uplink-route ' + (route.unknown ? 'is-unknown' : route.online ? 'is-online' : 'is-offline') +
 				(route.active ? ' is-active' : ''),
 			'href': cellular
 				? L.url('admin', 'modem', 'qmodem')
@@ -393,11 +610,15 @@ return view.extend({
 	},
 
 
-	drawMwanFlowLinks(flow, online) {
+	drawMwanFlowLinks(flow) {
 		const svg = flow.querySelector('.cpe-mwan-flow__links');
 		const routes = Array.from(flow.querySelectorAll('.cpe-uplink-route'));
 		const router = flow.querySelector('.cpe-mwan-flow__router .cpe-flow-node__icon');
 		const clients = Array.from(flow.querySelectorAll('.cpe-client-type'));
+
+		if (!svg)
+			return;
+
 		const bounds = svg.getBoundingClientRect();
 
 		if (!bounds.width || !bounds.height || !router || !routes.length || !clients.length)
@@ -423,16 +644,14 @@ return view.extend({
 		const routerY = device.centerY;
 		const paths = [];
 		const addPath = (d, state) => {
-			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			path.setAttribute('class', 'cpe-flow-link ' + state);
-			path.setAttribute('d', d);
-			paths.push(path);
+			paths.push(svgNode('path', { 'class': 'cpe-flow-link ' + state, 'd': d }));
 		};
 
 		sources.forEach((source, index) => {
 			const route = routes[index];
 			const state = route.classList.contains('is-active')
 				? 'is-active'
+				: route.classList.contains('is-unknown') ? 'is-unknown'
 				: route.classList.contains('is-online') ? 'is-online' : 'is-offline';
 			addPath('M' + source.right + ' ' + source.centerY + ' H' + leftBusX, state);
 		});
@@ -440,6 +659,8 @@ return view.extend({
 		if (sources.length > 1)
 			addPath('M' + leftBusX + ' ' + sources[0].centerY + ' V' + sources[sources.length - 1].centerY, 'is-trunk');
 		const hasActiveRoute = routes.some((route) => route.classList.contains('is-active'));
+		const online = routes.some((route) =>
+			route.classList.contains('is-online') || route.classList.contains('is-active'));
 		addPath('M' + leftBusX + ' ' + routerY + ' H' + device.left, hasActiveRoute ? 'is-active' : online ? 'is-online' : 'is-offline');
 
 		if (outputs.length > 1)
@@ -458,19 +679,28 @@ return view.extend({
 		svg.replaceChildren(...paths);
 	},
 
-	renderNetworkOverview(board, wans, mwanData, clients, health) {
-		const uplinks = this.getUplinkRoutes(wans, mwanData, health);
+	renderNetworkOverview(board, wans, mwanData, clients, health, healthKnown, wansFailed) {
+		const uplinks = this.getUplinkRoutes(wans, mwanData, health, healthKnown);
 		const routes = uplinks.routes;
+		const probeUnknown = !healthKnown;
+		const stateClass = wansFailed ? 'is-error' : probeUnknown ? 'is-unknown' :
+			(uplinks.online ? 'is-online' : 'is-offline');
+		const stateText = wansFailed ? _('Uplink information unavailable') :
+			probeUnknown ? _('Connectivity unknown') :
+			(uplinks.online ? _('Internet connected') : _('No Internet connection'));
 		const flow = E('div', { 'class': 'cpe-mwan-flow' }, [
-			E('svg', {
+			svgNode('svg', {
 				'class': 'cpe-mwan-flow__links',
 				'viewBox': '0 0 1 1',
 				'preserveAspectRatio': 'none',
 				'aria-hidden': 'true'
 			}),
-			E('div', { 'class': 'cpe-mwan-flow__routes' }, routes.map((route) => this.uplinkRouteNode(route))),
+			E('div', { 'class': 'cpe-mwan-flow__routes' }, wansFailed
+				? [ this.errorBody(_('Unable to read uplink information.')) ]
+				: routes.map((route) => this.uplinkRouteNode(route))),
 			E('div', { 'class': 'cpe-mwan-flow__router' }, [
-				this.flowNode('router', _('Router'), text(board.model), text(board.hostname), null, uplinks.online ? 'is-online' : 'is-offline')
+				this.flowNode('router', _('Router'), text(board.model), text(board.hostname), null,
+					probeUnknown ? 'is-unknown' : uplinks.online ? 'is-online' : 'is-offline')
 			]),
 			E('div', { 'class': 'cpe-mwan-flow__clients' }, [
 				E('a', { 'class': 'cpe-client-type', 'href': L.url('admin', 'network', 'wireless') }, [
@@ -489,14 +719,6 @@ return view.extend({
 				])
 			])
 		]);
-		const redraw = () => this.drawMwanFlowLinks(flow, uplinks.online);
-
-		if (typeof ResizeObserver !== 'undefined') {
-			flow._linkObserver = new ResizeObserver(redraw);
-			flow._linkObserver.observe(flow);
-		}
-		requestAnimationFrame(redraw);
-
 		return E('section', { 'class': 'cpe-network-overview', 'aria-label': _('Network overview') }, [
 			E('header', { 'class': 'cpe-network-overview__header' }, [
 				E('div', {}, [
@@ -504,52 +726,14 @@ return view.extend({
 					E('h1', {}, [ _('Network overview') ]),
 					E('p', {}, [ text(board.model) ])
 				]),
-				E('span', { 'class': 'cpe-network-overview__state ' + (uplinks.online ? 'is-online' : 'is-offline') }, [
+				E('span', { 'class': 'cpe-network-overview__state ' + stateClass }, [
 					E('i', { 'aria-hidden': 'true' }),
-					uplinks.online ? _('Internet connected') : _('No Internet connection')
+					stateText
 				])
 			]),
 			flow
 		]);
 	},
-	renderInternet(wans) {
-		const sorted = (wans || []).slice().sort((a, b) => a.getMetric() - b.getMetric());
-		const wan = sorted.find((item) => item.isUp()) || sorted[0];
-		const online = !!wan && wan.isUp();
-		const protocol = wan ? (wan.getI18n() || wan.getProtocol()) : '-';
-
-		return this.card(_('Internet'), 'globe', this.rows([
-			[ _('Interface'), wan ? wan.getName() : '-' ],
-			[ _('Protocol'), text(protocol) ],
-			[ _('IPv4 address'), wan ? firstAddress(wan.getIPAddrs()) : '-' ],
-			[ _('Gateway'), wan ? text(wan.getGatewayAddr()) : '-' ]
-		]), {
-			className: 'cpe-card--internet',
-			badge: this.badge(online ? _('Online') : _('Offline'), online),
-			footer: E('footer', { 'class': 'cpe-card__footer' }, [
-				this.link(_('Manage interfaces'), [ 'admin', 'network', 'network' ])
-			])
-		});
-	},
-
-	renderWireless(radios, wifiNetworks, associations) {
-		const active = (wifiNetworks || []).filter((wifi) => !wifi.isDisabled());
-		const clients = (associations || []).reduce((count, list) => count + list.length, 0);
-		const names = active.map((wifi) => wifi.getActiveSSID()).filter(Boolean);
-
-		return this.card(_('Wireless'), 'wifi', this.rows([
-			[ _('Active radios'), '%d / %d'.format(active.length, (radios || []).length) ],
-			[ _('Networks'), names.length ? names.join(', ') : '-' ],
-			[ _('Wireless clients'), String(clients) ]
-		]), {
-			className: 'cpe-card--wireless',
-			badge: this.badge(active.length ? _('Online') : _('Offline'), active.length > 0),
-			footer: E('footer', { 'class': 'cpe-card__footer' }, [
-				this.link(_('Manage wireless'), [ 'admin', 'network', 'wireless' ])
-			])
-		});
-	},
-
 	renderModem(modemData, health) {
 		const modems = Array.isArray(modemData.info) ? modemData.info : [];
 		const entries = modems.reduce((all, modem) =>
@@ -688,16 +872,31 @@ return view.extend({
 		return Object.values(byMac).sort((a, b) => a.hostname.localeCompare(b.hostname));
 	},
 
-	renderClients(clients) {
+	renderClients(clients, failedFlag) {
+		if (failedFlag) {
+			return this.card(_('Connected clients'), 'users', [ this.errorBody(_('Unable to load client information.')) ], {
+				className: 'cpe-card--clients'
+			});
+		}
+
+		const heading = (label) => [
+			icon(factIcon(label)),
+			E('span', {}, [ label ])
+		];
 		const table = E('div', { 'class': 'cpe-table-wrap' }, [
 			E('table', { 'class': 'cpe-table' }, [
 				E('thead', {}, [ E('tr', {}, [
-					E('th', {}, [ _('Hostname') ]),
-					E('th', {}, [ _('IP address') ]),
-					E('th', {}, [ _('MAC address') ])
+					E('th', {}, heading(_('Hostname'))),
+					E('th', {}, heading(_('IP address'))),
+					E('th', {}, heading(_('MAC address')))
 				]) ]),
 				E('tbody', {}, clients.length ? clients.map((client) => E('tr', {}, [
-					E('td', { 'data-title': _('Hostname') }, [ client.hostname ]),
+					E('td', { 'data-title': _('Hostname') }, [
+						E('span', { 'class': 'cpe-client-name' }, [
+							icon(client.wireless ? 'wifi' : 'monitor'),
+							E('span', {}, [ client.hostname ])
+						])
+					]),
 					E('td', { 'data-title': _('IP address') }, [ client.ip ]),
 					E('td', { 'data-title': _('MAC address') }, [ client.mac ])
 				])) : [ E('tr', {}, [
@@ -717,12 +916,12 @@ return view.extend({
 			[ 'wifi', _('Wireless'), [ 'admin', 'network', 'wireless' ] ],
 			[ 'radio', _('Cellular'), [ 'admin', 'modem', 'qmodem' ] ],
 			[ 'upload', _('Firmware upgrade'), [ 'admin', 'system', 'flash' ] ],
-			[ 'refresh', _('Reboot'), [ 'admin', 'system', 'reboot' ] ],
+			[ 'power', _('Reboot'), [ 'admin', 'system', 'reboot' ] ],
 			[ 'settings', _('Advanced settings'), [ 'admin', 'status', 'overview' ] ]
 		];
 
 		return E('section', { 'class': 'cpe-actions' }, [
-			E('h2', {}, [ _('Quick actions') ]),
+			E('h2', {}, [ icon('zap'), _('Quick actions') ]),
 			E('div', { 'class': 'cpe-actions__grid' }, actions.map((action) =>
 				E('a', { 'href': L.url.apply(L, action[2]), 'class': 'cpe-action' }, [
 					icon(action[0]),
@@ -733,35 +932,42 @@ return view.extend({
 	},
 
 	renderDashboard(data) {
-		const board = data[0] || {};
-		const system = data[1] || {};
-		const wans = data[2] || [];
-		const radios = data[3] || [];
-		const wifiNetworks = data[4] || [];
-		const hints = data[5];
-		const leases = data[6] || {};
-		const modem = data[7] || {};
-		const fan = data[8] || {};
-		const lan = data[9];
-		const mwan = data[10] || {};
-		const associations = data[12] || [];
-        const health = data[13] || {};
+		const board = valueOf(data[0], {});
+		const system = valueOf(data[1], {});
+		const wans = valueOf(data[2], []);
+		const hints = valueOf(data[5], null);
+		const leases = valueOf(data[6], {});
+		const modem = valueOf(data[7], {});
+		const fan = valueOf(data[8], {});
+		const lan = valueOf(data[9], null);
+		const mwan = valueOf(data[10], {});
+		const associations = (data[12] || []).map((entry) => valueOf(entry, []));
+		const health = valueOf(data[13], {});
+		const healthKnown = !failed(data[13]);
+		const wansFailed = failed(data[2]);
+		const clientsFailed = failed(data[5]) && failed(data[6]);
 		const clients = this.collectClients(leases, associations, hints, lan);
 
 		return E('div', { 'class': 'cpe-dashboard' }, [
-			this.renderNetworkOverview(board, wans, mwan, clients, health),
+			this.renderNetworkOverview(board, wans, mwan, clients, health, healthKnown, wansFailed),
 			E('section', { 'class': 'cpe-details' }, [
 				E('div', { 'class': 'cpe-section-heading' }, [
-					E('h2', {}, [ _('Network health') ]),
-					E('span', {}, [ new Date().toLocaleString() ])
+					E('h2', {}, [ icon('activity'), _('Network health') ]),
+					E('span', {}, [ '%s %s'.format(_('Updated'), new Date().toLocaleTimeString()) ])
 				]),
 				E('div', { 'class': 'cpe-grid cpe-grid--status' }, [
-				this.renderModem(modem, health),
-				this.renderCooling(fan),
-				this.renderSystem(board, system)
+				failed(data[7]) || failed(data[13])
+					? this.errorCard(_('Cellular'), 'radio', 'cpe-card--cellular', _('Unable to load modem status.'))
+					: this.renderModem(modem, health),
+				failed(data[8])
+					? this.errorCard(_('Cooling'), 'fan', 'cpe-card--cooling', _('Unable to load cooling status.'))
+					: this.renderCooling(fan),
+				failed(data[0]) && failed(data[1])
+					? this.errorCard(_('Router'), 'router', 'cpe-card--system', _('Unable to load system information.'))
+					: this.renderSystem(board, system)
 				])
 			]),
-			this.renderClients(clients),
+			this.renderClients(clients, clientsFailed),
 			this.renderActions()
 		]);
 	},
@@ -771,13 +977,21 @@ return view.extend({
 
 		if (!this.pollRegistered) {
 			this.pollRegistered = true;
-			poll.add(() => network.flushCache().then(() => this.load()).then((updated) => {
-				const current = document.querySelector('.cpe-dashboard');
-
-				if (current)
-					current.replaceWith(this.renderDashboard(updated));
-			}), 5);
+			poll.add(() => this.refresh(), 5);
 		}
+
+		const bind = () => {
+			if (!document.querySelector('.cpe-mwan-flow'))
+				return false;
+
+			this.bindFlow(document);
+			return true;
+		};
+
+		requestAnimationFrame(() => {
+			if (!bind())
+				window.setTimeout(bind, 80);
+		});
 
 		return this.renderDashboard(data);
 	},

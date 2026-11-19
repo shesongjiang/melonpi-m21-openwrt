@@ -848,7 +848,7 @@ table tbody tr:hover td {
 .cbi-progressbar::after {
 	color: #424245;
 	content: attr(title);
-	font-size: 10px;
+	font-size: 12px;
 	inset: 0;
 	line-height: 16px;
 	position: absolute;
@@ -913,7 +913,7 @@ table tbody tr:hover td {
 	border-radius: 4px;
 	color: #515154;
 	display: inline-block;
-	font-size: 11px;
+	font-size: 12px;
 	font-weight: 600;
 	line-height: 1.35;
 	padding: 2px 6px;
@@ -1000,7 +1000,7 @@ table tbody tr:hover td {
 	border-radius: 5px;
 	bottom: calc(100% + 7px);
 	color: #fff;
-	font-size: 11px;
+	font-size: 12px;
 	left: 50%;
 	line-height: 1.45;
 	max-width: 280px;
