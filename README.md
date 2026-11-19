@@ -74,7 +74,7 @@ cd melonpi-m21-openwrt
 2. `git apply` 板级补丁，并校验 `Device/melonpi-m21`、`IMAGE_SIZE := 16064k`、DTS 存在；
 3. 写入 `feeds.conf`，`feeds update -a`，将 `feeds/qmodem` 固定到 `d28f330e` 后重建索引、`feeds install -a`；
 4. 复制 `luci-theme-cpe`、`luci-app-cpe-panel` 到 `package/`；
-5. 应用 `config/final.config`，`make defconfig`，校验 profile 与关键包，拒绝 wpad/hostapd；
+5. 应用 `config/final.config`，`make defconfig`，校验 profile、关键包（含 USB 存储相关 kmod）与 board 元数据变量，拒绝 wpad/hostapd；
 6. `make -j$(nproc)`；
 7. 校验镜像存在、大小 ≤ 16,449,536 字节（16064 KiB），检查 manifest 不含无线包，输出 SHA-256。
 
@@ -82,13 +82,33 @@ cd melonpi-m21-openwrt
 
 ## 预编译固件
 
-已发布版本：`v1.0.0-20261119`
+最新版本：`v1.1.0-20261119`（在 `v1.0.0-20261119` 基础上加入 USB 存储支持并修正 board 元数据）
 
 | 文件 | 大小 | SHA-256 |
 |---|---|---|
-| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 13,959,708 字节（约 13.3 MiB） | `d0928b544dd1d2283470befaf8d9cdec04e327debeb90bc92014f6e0154036dc` |
+| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `5f2e11c413396e6766d53a702208cf1afcf82b142631104071f861914109befd` |
 
-镜像内含：`luci-theme-cpe`、`luci-app-cpe-panel`、`mwan3`、`qmodem` + `luci-app-qmodem-next`、`kmod-qmi_wwan_f/q/s`、`kmod-mmc-mtk`、`kmod-usb3`。不含 wpad/hostapd/kmod-mt76/kmod-mac80211。
+- 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`
+- metadata：`new_supported_devices = ["melonpi,m21"]`、`board = "melonpi,m21"`，设备上 `sysupgrade -T` 可通过
+- 镜像内含：`luci-theme-cpe`、`luci-app-cpe-panel`、`mwan3`、`qmodem` + `luci-app-qmodem-next`、`kmod-qmi_wwan_f/q/s`、`kmod-mmc-mtk`、`kmod-usb3`；不含 wpad/hostapd/kmod-mt76/kmod-mac80211
+- 本版新增 USB 存储：`kmod-usb-storage`、`kmod-usb-storage-uas`、`kmod-scsi-core`、`kmod-fs-vfat`、`kmod-fs-exfat`、`kmod-nls-cp437`（依赖 `kmod-nls-iso8859-1`）
+- USB 存储支持 **FAT32 / exFAT / ext4**，**NTFS 不支持**（未编入 ntfs3/ntfs-3g）
+- 首次启动后 rootfs_data 约 **2.19 MB**（2176 KiB）
+
+### 用 U 盘扩展 overlay（extroot）
+
+本版已具备 USB 存储与 ext4 支持，可把 overlay 迁移到 U 盘的 ext4 分区。先把目标分区格式化为 ext4（例如 `mkfs.ext4 /dev/sda2`），再编辑 `/etc/config/fstab`：
+
+```
+config mount
+	option target '/overlay'
+	option device '/dev/sda2'
+	option fstype 'ext4'
+	option enabled '1'
+	option enabled_fsck '1'
+```
+
+要点：**必须写 `/dev/sda2`，不要用 UUID**。preinit 阶段的卷缓存识别不到 USB 分区，用 UUID 会在挂载 overlay 之前找不到设备，导致回落到内置 rootfs_data。启用 extroot 后内置 rootfs_data 不再用于 overlay。
 
 ## 已知限制
 
@@ -98,16 +118,18 @@ cd melonpi-m21-openwrt
 4. 本板无无线，镜像内不含 wpad/hostapd；这是预期行为，不是缺包。
 5. 仅在 16 MiB SPI NOR 的 MelonPi M21 上验证；未验证 32M 变体或其他板型。
 6. 内存容量 256 MiB 由 bootloader 决定，DTS 不写死 memory 节点；更换 bootloader 参数会改变可用内存。
+7. **内核模块必须与镜像同源**：本版内核为 `6.18.60~cbfbdaf4…`，只能使用同一棵树、同一 commit（`c4c69cfe`）编译出的 kmod。官方 snapshot 的 kmod 钉在 `6.18.60~6ddfb7f4…`，其他旧镜像的 kmod 也无法匹配，均不能安装。
+8. **NTFS 不支持**：镜像只包含 vfat/exfat/ext4 驱动；如需要 NTFS，请自行编译 `kmod-fs-ntfs3` 或安装用户态 `ntfs-3g`（均未包含）。
 
 ## 刷写注意事项
 
 > 本仓库不提供、也不执行任何刷写操作，以下仅为说明。
 
 1. 确认设备为 **16 MiB flash** 版本；不要把 32M 布局镜像写入 16M 设备。
-2. 从原厂/旧固件升级：`sysupgrade -F immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin`，**不要保留旧配置**，避免带入不兼容的 UCI。
+2. 从原厂/旧固件升级：`sysupgrade -F immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin`。刷机可保留配置或按需清空；从非本仓库旧固件升级、或跨内核对齐时建议不保留配置。该镜像 compat 为 1.1，保留旧 swconfig 配置会触发强制擦除提示。
 3. 刷写前校验 SHA-256，刷写过程中不要断电。
 4. 恢复方式：上电时按住 reset 约 5 秒进入 U-Boot 恢复页面（默认 `192.168.1.1`），上传同一镜像。
-5. 首次启动会创建 rootfs_data 覆盖层；可用空间取决于 squashfs 压缩后大小。
+5. 首次启动会创建 rootfs_data 覆盖层，本版约 2.19 MB（2176 KiB）；如需更大空间，可按上文用 U 盘 ext4 分区做 extroot。
 
 ## 上游来源与许可
 

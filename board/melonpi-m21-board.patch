@@ -1,6 +1,6 @@
 diff --git a/target/linux/ramips/dts/mt7621_melonpi-m21.dts b/target/linux/ramips/dts/mt7621_melonpi-m21.dts
-new file mode 100644
-index 0000000..5339ecd
+new file mode 100755
+index 0000000000..5339ecd593
 --- /dev/null
 +++ b/target/linux/ramips/dts/mt7621_melonpi-m21.dts
 @@ -0,0 +1,153 @@
@@ -158,10 +158,10 @@ index 0000000..5339ecd
 +	};
 +};
 diff --git a/target/linux/ramips/image/mt7621.mk b/target/linux/ramips/image/mt7621.mk
-index 6bea583..cdf93ec 100644
+index 6bea583c7a..02c913cd1e 100644
 --- a/target/linux/ramips/image/mt7621.mk
 +++ b/target/linux/ramips/image/mt7621.mk
-@@ -2241,6 +2241,18 @@ define Device/linksys_re7000
+@@ -2241,6 +2241,24 @@ define Device/linksys_re7000
  endef
  TARGET_DEVICES += linksys_re7000
  
@@ -171,6 +171,12 @@ index 6bea583..cdf93ec 100644
 +  IMAGE_SIZE := 16064k
 +  DEVICE_VENDOR := MelonPi
 +  DEVICE_MODEL := M21
++  # DTS compatible is "melonpi,m21"; sysupgrade compares the runtime
++  # board_name (comma form) against SUPPORTED_DEVICES, so it must be
++  # declared explicitly instead of relying on the dash-form device name.
++  # BOARD_NAME keeps the metadata "board" field in sync with compatible too.
++  SUPPORTED_DEVICES := melonpi,m21
++  BOARD_NAME := melonpi,m21
 +  DEVICE_PACKAGES := kmod-mmc-mtk kmod-usb3 kmod-usb-ledtrig-usbport \
 +	kmod-usb-net-qmi-wwan kmod-usb-serial-option kmod-usb-net-rndis \
 +	-wpad-basic-mbedtls -uboot-envtools
@@ -181,7 +187,7 @@ index 6bea583..cdf93ec 100644
    $(Device/dsa-migration)
    DEVICE_VENDOR := Maginon
 diff --git a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
-index 4b96ace..e863a68 100644
+index 4b96aceca1..e863a68e84 100644
 --- a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
 +++ b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
 @@ -91,6 +91,7 @@ ramips_setup_interfaces()
@@ -193,7 +199,7 @@ index 4b96ace..e863a68 100644
  	meig,slt866|\
  	openfi,5pro|\
 diff --git a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
-index fdc53c0..100a260 100644
+index fdc53c0c38..100a260fe9 100644
 --- a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
 +++ b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
 @@ -51,6 +51,7 @@ platform_do_upgrade() {

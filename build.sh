@@ -71,6 +71,10 @@ grep -q 'define Device/melonpi-m21' "$SRC/target/linux/ramips/image/mt7621.mk" \
 	|| die "补丁后未找到 Device/melonpi-m21"
 grep -q "IMAGE_SIZE := ${IMAGE_SIZE_KIB}k" "$SRC/target/linux/ramips/image/mt7621.mk" \
 	|| die "mt7621.mk 中 IMAGE_SIZE 不是 ${IMAGE_SIZE_KIB}k"
+grep -q 'SUPPORTED_DEVICES := melonpi,m21' "$SRC/target/linux/ramips/image/mt7621.mk" \
+	|| die "mt7621.mk 中 SUPPORTED_DEVICES 未设为 melonpi,m21"
+grep -q 'BOARD_NAME := melonpi,m21' "$SRC/target/linux/ramips/image/mt7621.mk" \
+	|| die "mt7621.mk 中 BOARD_NAME 未设为 melonpi,m21"
 [ -f "$SRC/target/linux/ramips/dts/mt7621_melonpi-m21.dts" ] \
 	|| die "板级 DTS 缺失"
 
@@ -96,6 +100,10 @@ grep -q '^CONFIG_TARGET_ramips_mt7621_DEVICE_melonpi-m21=y' .config || die "melo
 grep -q '^CONFIG_PACKAGE_luci-theme-cpe=y' .config || die "luci-theme-cpe 未选中"
 grep -q '^CONFIG_PACKAGE_luci-app-cpe-panel=y' .config || die "luci-app-cpe-panel 未选中"
 grep -q '^CONFIG_PACKAGE_luci-app-qmodem-next=y' .config || die "luci-app-qmodem-next 未选中"
+for pkg in kmod-usb-storage kmod-usb-storage-uas kmod-scsi-core \
+           kmod-fs-vfat kmod-nls-cp437 kmod-fs-exfat; do
+	grep -q "^CONFIG_PACKAGE_${pkg}=y" .config || die "${pkg} 未选中（USB 存储支持缺失）"
+done
 if grep -qE '^CONFIG_PACKAGE_(wpad|hostapd)' .config; then
 	die "本板无无线，但 .config 仍选中了 wpad/hostapd"
 fi

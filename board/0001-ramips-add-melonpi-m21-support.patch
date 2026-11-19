@@ -1,38 +1,45 @@
-﻿From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: melonpi-m21 <melonpi-m21@users.noreply.github.com>
-Date: Wed, 19 Nov 2026 01:30:00 +0800
+From 7a024163bc29b8b8a045d896a792fd9884e4065d Mon Sep 17 00:00:00 2001
+From: shesongjiang <51104164+shesongjiang@users.noreply.github.com>
+Date: Thu, 19 Nov 2026 18:11:15 +0800
 Subject: [PATCH] ramips: add support for MelonPi M21
 
-Add a single-profile (16 MiB SPI NOR) board definition for MelonPi M21,
-based on MediaTek MT7621.
+Add support for the MelonPi M21, a MT7621 based CPE board.
 
 Hardware:
-- MT7621 (880 MHz, 4 threads), 256 MiB DDR passed by the bootloader
-- 16 MiB SPI NOR: u-boot 192K, u-boot-env 64K, factory 64K,
-  firmware 16064K (0x50000-0x1000000)
-- 1x WAN (gmac1) + 1x LAN (MT7530 switch port 1)
-- USB 3.0 and microSD (sdhci), no wireless module
+- SoC: MediaTek MT7621 (880 MHz, 4 threads)
+- RAM: 256 MiB DDR, passed by the bootloader
+- Flash: 16 MiB SPI NOR
+  - u-boot 0x0-0x30000 (192K)
+  - u-boot-env 0x30000-0x40000 (64K)
+  - factory 0x40000-0x50000 (64K)
+  - firmware 0x50000-0x1000000 (16064K)
+- Ethernet: 1x WAN (gmac1), 1x LAN via MT7530 switch port 1
+- USB: USB 3.0
+- Storage: microSD (sdhci)
 - LEDs: GPIO0 green:sys, GPIO16 blue:power, both active high
-- Keys: GPIO13 user (EV_SW), GPIO18 reset, both active low
+- Buttons: GPIO13 user (EV_SW), GPIO18 reset, both active low
+- Wireless: none
+- PCIe: none; the controller, both PHYs and the pinctrl group are
+  removed with /delete-node/ because the board has no PCIe devices
+- UART: ttyS0 at 115200
 
-The PCIe controller, both PCIe PHYs and the PCIe pinctrl group are
-removed with /delete-node/ because this board has no PCIe devices.
+The image size is limited to 16064k to match the firmware partition.
+SUPPORTED_DEVICES and BOARD_NAME are set to the DTS compatible form
+"melonpi,m21" so that sysupgrade accepts the image on the device, whose
+board_name is reported in comma form.
 
-Tested on ImmortalWrt master c4c69cfede1bd4a28fa01b9079a7eb61ef4fed4a;
-the resulting squashfs sysupgrade image is 13,959,708 bytes and fits
-the 16064 KiB firmware partition.
-
-Signed-off-by: melonpi-m21 <melonpi-m21@users.noreply.github.com>
+Signed-off-by: shesongjiang <51104164+shesongjiang@users.noreply.github.com>
 ---
- target/linux/ramips/dts/mt7621_melonpi-m21.dts     | 153 ++++++++++++++
- target/linux/ramips/image/mt7621.mk                |  13 +
- .../mt7621/base-files/etc/board.d/02_network       |   1 +
- .../mt7621/base-files/lib/upgrade/platform.sh      |   1 +
- 4 files changed, 168 insertions(+)
+ .../linux/ramips/dts/mt7621_melonpi-m21.dts   | 153 ++++++++++++++++++
+ target/linux/ramips/image/mt7621.mk           |  18 +++
+ .../mt7621/base-files/etc/board.d/02_network  |   1 +
+ .../mt7621/base-files/lib/upgrade/platform.sh |   1 +
+ 4 files changed, 173 insertions(+)
+ create mode 100755 target/linux/ramips/dts/mt7621_melonpi-m21.dts
 
 diff --git a/target/linux/ramips/dts/mt7621_melonpi-m21.dts b/target/linux/ramips/dts/mt7621_melonpi-m21.dts
-new file mode 100644
-index 0000000..5339ecd
+new file mode 100755
+index 0000000000..5339ecd593
 --- /dev/null
 +++ b/target/linux/ramips/dts/mt7621_melonpi-m21.dts
 @@ -0,0 +1,153 @@
@@ -190,10 +197,10 @@ index 0000000..5339ecd
 +	};
 +};
 diff --git a/target/linux/ramips/image/mt7621.mk b/target/linux/ramips/image/mt7621.mk
-index 6bea583..cdf93ec 100644
+index 6bea583c7a..02c913cd1e 100644
 --- a/target/linux/ramips/image/mt7621.mk
 +++ b/target/linux/ramips/image/mt7621.mk
-@@ -2241,6 +2241,18 @@ define Device/linksys_re7000
+@@ -2241,6 +2241,24 @@ define Device/linksys_re7000
  endef
  TARGET_DEVICES += linksys_re7000
  
@@ -203,6 +210,12 @@ index 6bea583..cdf93ec 100644
 +  IMAGE_SIZE := 16064k
 +  DEVICE_VENDOR := MelonPi
 +  DEVICE_MODEL := M21
++  # DTS compatible is "melonpi,m21"; sysupgrade compares the runtime
++  # board_name (comma form) against SUPPORTED_DEVICES, so it must be
++  # declared explicitly instead of relying on the dash-form device name.
++  # BOARD_NAME keeps the metadata "board" field in sync with compatible too.
++  SUPPORTED_DEVICES := melonpi,m21
++  BOARD_NAME := melonpi,m21
 +  DEVICE_PACKAGES := kmod-mmc-mtk kmod-usb3 kmod-usb-ledtrig-usbport \
 +	kmod-usb-net-qmi-wwan kmod-usb-serial-option kmod-usb-net-rndis \
 +	-wpad-basic-mbedtls -uboot-envtools
@@ -213,7 +226,7 @@ index 6bea583..cdf93ec 100644
    $(Device/dsa-migration)
    DEVICE_VENDOR := Maginon
 diff --git a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
-index 4b96ace..e863a68 100644
+index 4b96aceca1..e863a68e84 100644
 --- a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
 +++ b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
 @@ -91,6 +91,7 @@ ramips_setup_interfaces()
@@ -225,7 +238,7 @@ index 4b96ace..e863a68 100644
  	meig,slt866|\
  	openfi,5pro|\
 diff --git a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
-index fdc53c0..100a260 100644
+index fdc53c0c38..100a260fe9 100644
 --- a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
 +++ b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
 @@ -51,6 +51,7 @@ platform_do_upgrade() {
@@ -236,4 +249,6 @@ index fdc53c0..100a260 100644
  	mikrotik,ltap-2hnd|\
  	mikrotik,routerboard-750gr3|\
  	mikrotik,routerboard-760igs|\
+-- 
+2.39.5
 

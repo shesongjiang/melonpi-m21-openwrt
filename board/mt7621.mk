@@ -2247,6 +2247,12 @@ define Device/melonpi-m21
   IMAGE_SIZE := 16064k
   DEVICE_VENDOR := MelonPi
   DEVICE_MODEL := M21
+  # DTS compatible is "melonpi,m21"; sysupgrade compares the runtime
+  # board_name (comma form) against SUPPORTED_DEVICES, so it must be
+  # declared explicitly instead of relying on the dash-form device name.
+  # BOARD_NAME keeps the metadata "board" field in sync with compatible too.
+  SUPPORTED_DEVICES := melonpi,m21
+  BOARD_NAME := melonpi,m21
   DEVICE_PACKAGES := kmod-mmc-mtk kmod-usb3 kmod-usb-ledtrig-usbport \
 	kmod-usb-net-qmi-wwan kmod-usb-serial-option kmod-usb-net-rndis \
 	-wpad-basic-mbedtls -uboot-envtools
