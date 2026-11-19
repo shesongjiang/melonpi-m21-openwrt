@@ -1,0 +1,19 @@
+{#
+ Copyright 2026
+ Licensed to the public under the Apache License 2.0.
+-#}
+
+		</main>
+	{% if (!blank_page): %}
+			<footer id="cpe-footer">
+				<span>{{ version.luciname }} {{ version.luciversion }}</span>
+				<span>{{ version.distname }} {{ version.distversion }}</span>
+			</footer>
+		</div>
+	</div>
+	<script>L.require('menu-dogenet-20260906')</script>
+	{% else %}
+	</div>
+	{% endif %}
+</body>
+</html>

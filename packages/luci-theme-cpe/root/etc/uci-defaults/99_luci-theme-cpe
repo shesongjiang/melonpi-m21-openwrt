@@ -1,0 +1,34 @@
+#!/bin/sh
+
+current_theme="$(uci -q get luci.main.mediaurlbase)"
+theme_user_selected="$(uci -q get luci.main.dogenet_theme_user_selected)"
+
+uci -q delete luci.themes
+
+uci batch <<-EOF
+	set luci.themes=internal
+	set luci.themes.DogeNetUI=/luci-static/cpe
+	set luci.themes.Bootstrap=/luci-static/bootstrap
+	set luci.themes.BootstrapDark=/luci-static/bootstrap-dark
+	set luci.themes.BootstrapLight=/luci-static/bootstrap-light
+EOF
+
+case "$current_theme" in
+	/luci-static/cpe|/luci-static/bootstrap|/luci-static/bootstrap-dark|/luci-static/bootstrap-light)
+		valid_theme=1
+		;;
+	*)
+		valid_theme=0
+		;;
+esac
+
+if [ "$theme_user_selected" = "1" ] && [ "$valid_theme" = "1" ]; then
+	uci set "luci.main.mediaurlbase=$current_theme"
+else
+	uci set luci.main.mediaurlbase=/luci-static/cpe
+fi
+
+uci -q delete luci.main.dogenet_initialized
+uci commit luci
+
+exit 0

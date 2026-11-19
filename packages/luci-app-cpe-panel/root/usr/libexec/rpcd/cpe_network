@@ -1,0 +1,44 @@
+#!/bin/sh
+case "$1" in
+list) printf '%s\n' '{"status":{}}';;
+call)
+ [ "$2" = status ] || exit 1
+ umask 077
+ mkdir -p /var/run/cpe-panel /tmp/lock
+ lock /tmp/lock/cpe-panel-network
+ trap 'lock -u /tmp/lock/cpe-panel-network' EXIT
+ cache=/var/run/cpe-panel/network.json
+ now=$(date +%s)
+ if [ -s "$cache" ] && [ "$((now-$(stat -c %Y "$cache")))" -lt 10 ]; then cat "$cache"; exit 0; fi
+ cellular='{}'
+ if [ -r /usr/share/qmodem/tricascade-device.sh ]; then
+  . /usr/share/qmodem/tricascade-device.sh
+  for section in $(uci -q show qmodem | sed -n 's/^qmodem\.\([^.=]*\)=modem-device$/\1/p'); do
+   path=$(uci -q get "qmodem.$section.path")
+   tricascade_device "$path" || continue
+   data=$(/usr/share/qmodem/tricascade-api.sh "$section" status)
+   cellular=$(printf '%s' "$data" | jq -c --arg device "$(uci -q get qmodem.$section.network)" '{present:true,device:$device,model:"SG500M2-X",sim_status,connection,signal_valid,radio,band,lte_signal,nr_signal}')
+   break
+  done
+ fi
+ [ -n "$cellular" ] || cellular='{}'
+ interfaces='{}'
+ for name in $(ubus call network.interface dump | jq -r '.interface[] | select(.interface!="lan" and .interface!="loopback" and .up==true) | select(any(.route[]?; (.target=="0.0.0.0" or .target=="::") and .mask==0)) | .interface'); do
+  case "$name" in *[!a-zA-Z0-9_.-]*) continue;; esac
+  state=$(ubus call "network.interface.$name" status)
+  device=$(printf '%s' "$state" | jq -r '.l3_device // empty')
+  case "$device" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
+  internet=false
+  if ping -I "$device" -c 1 -W 1 223.5.5.5 >/dev/null 2>&1 || ping -I "$device" -c 1 -W 1 119.29.29.29 >/dev/null 2>&1; then internet=true
+  elif printf '%s' "$state" | jq -e 'any(.route[]?; .target=="::" and .mask==0)' >/dev/null; then
+   ping6 -I "$device" -c 1 -W 1 2400:3200::1 >/dev/null 2>&1 && internet=true
+  fi
+  # A USB management IP must not override a modem's explicit disconnect state.
+  if [ "$(printf '%s' "$cellular" | jq -r '.device // empty')" = "$device" ] && [ "$(printf '%s' "$cellular" | jq -r '.connection // empty')" != connected ]; then internet=false; fi
+  interfaces=$(printf '%s' "$interfaces" | jq -c --arg name "$name" --arg device "$device" --argjson internet "$internet" '. + {($name):{device:$device,internet:$internet}}')
+ done
+ jq -nc --argjson interfaces "$interfaces" --argjson cellular "$cellular" --argjson now "$now" '{interfaces:$interfaces,cellular:$cellular,checked_at:$now,internet:any($interfaces[]; .internet==true)}' > "$cache.new" || exit 1
+ mv "$cache.new" "$cache"
+ cat "$cache"
+ ;;
+esac

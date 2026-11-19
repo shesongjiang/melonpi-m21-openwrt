@@ -1,0 +1,22 @@
+{
+	"admin/cpe": {
+		"title": "Overview",
+		"order": 0,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-cpe-panel"
+			]
+		}
+	},
+	"admin/cpe/overview": {
+		"title": "Overview",
+		"order": 1,
+		"action": {
+			"type": "view",
+			"path": "cpe/dashboard_network"
+		}
+	}
+}

@@ -1,0 +1,316 @@
+From 8d7e4f793464e7c5779bbd8d169382a8a8ed2582 Mon Sep 17 00:00:00 2001
+From: qooke <83923036@qq.com>
+Date: Wed, 22 Apr 2026 10:31:24 +0900
+Subject: [PATCH] ramips: add support for MelonPi M21
+
+Add support for the MelonPi M21, a compact dual-Gigabit Ethernet router
+based on the MediaTek MT7621AT SoC.
+
+Specifications:
+
+- SoC: MediaTek MT7621AT (MIPS 1004Kc @ 880 MHz)
+- RAM: 128 MiB / 512 MiB DDR3
+- Flash: 16 MiB / 32 MiB SPI-NOR
+- Ethernet:
+  - 2x 10/100/1000 Mbps ports (1x WAN, 1x LAN)
+  - MediaTek MT7530 switch (integrated)
+- USB: 1x USB 3.0 Type-A
+- Storage: 1x MicroSD (SDXC) slot
+- Buttons:
+  - Reset button (GPIO#18)
+  - User button (GPIO#13)
+- LEDs:
+  - Red Power LED
+  - Blue System LED (GPIO#16)
+  - Green User LED (GPIO#0)
+- UART:
+  - 4-pin header (2.54 mm pitch, J1, not populated)
+  - 115200 8N1
+  - Pinout: 3V3, TX, RX, GND
+- Power: Type-C 5V/2A with ch340
+
+Installation:
+
+The vendor firmware is based on OpenWrt. The generated sysupgrade image
+can be flashed from the vendor firmware using:
+
+sysupgrade -F <image>
+
+Do not preserve settings when flashing from vendor firmware.
+
+Recovery installation through U-Boot:
+
+1. Hold the reset button during boot for 5 seconds.
+2. Access the recovery web interface at 192.168.1.1.
+3. Upload the OpenWrt image.
+
+Signed-off-by: qooke <83923036@qq.com>
+---
+ .../ramips/dts/mt7621_melonpi-m21-16m.dts     |  11 ++
+ .../ramips/dts/mt7621_melonpi-m21-32m.dts     |  11 ++
+ .../linux/ramips/dts/mt7621_melonpi-m21.dtsi  | 152 ++++++++++++++++++
+ target/linux/ramips/image/mt7621.mk           |  26 +++
+ .../mt7621/base-files/etc/board.d/02_network  |   2 +
+ .../mt7621/base-files/lib/upgrade/platform.sh |   1 +
+ 6 files changed, 203 insertions(+)
+ create mode 100644 target/linux/ramips/dts/mt7621_melonpi-m21-16m.dts
+ create mode 100644 target/linux/ramips/dts/mt7621_melonpi-m21-32m.dts
+ create mode 100644 target/linux/ramips/dts/mt7621_melonpi-m21.dtsi
+
+diff --git a/target/linux/ramips/dts/mt7621_melonpi-m21-16m.dts b/target/linux/ramips/dts/mt7621_melonpi-m21-16m.dts
+new file mode 100644
+index 0000000000..10a9f24986
+--- /dev/null
++++ b/target/linux/ramips/dts/mt7621_melonpi-m21-16m.dts
+@@ -0,0 +1,11 @@
++#include "mt7621_melonpi-m21.dtsi"
++
++/ {
++	compatible = "melonpi,m21-16m", "melonpi,m21", "mediatek,mt7621-soc";
++	model = "MelonPi M21 (16M flash)";
++};
++
++&firmware {
++	reg = <0x50000 0xfb0000>;
++};
++
+diff --git a/target/linux/ramips/dts/mt7621_melonpi-m21-32m.dts b/target/linux/ramips/dts/mt7621_melonpi-m21-32m.dts
+new file mode 100644
+index 0000000000..9bcd2b54ac
+--- /dev/null
++++ b/target/linux/ramips/dts/mt7621_melonpi-m21-32m.dts
+@@ -0,0 +1,11 @@
++#include "mt7621_melonpi-m21.dtsi"
++
++/ {
++	compatible = "melonpi,m21-32m", "melonpi,m21", "mediatek,mt7621-soc";
++	model = "MelonPi M21 (32M flash)";
++};
++
++&firmware {
++	reg = <0x50000 0x1fb0000>;
++};
++
+diff --git a/target/linux/ramips/dts/mt7621_melonpi-m21.dtsi b/target/linux/ramips/dts/mt7621_melonpi-m21.dtsi
+new file mode 100644
+index 0000000000..b78b3964c3
+--- /dev/null
++++ b/target/linux/ramips/dts/mt7621_melonpi-m21.dtsi
+@@ -0,0 +1,152 @@
++// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
++
++#include "mt7621.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++
++/ {
++	compatible = "melonpi,m21", "mediatek,mt7621-soc";
++
++	aliases {
++		led-boot = &led_sys;
++		led-failsafe = &led_sys;
++		led-running = &led_sys;
++		led-upgrade = &led_sys;
++		label-mac-device = &gmac0;
++	};
++
++	chosen {
++		bootargs = "console=ttyS0,115200";
++	};
++
++	keys {
++		compatible = "gpio-keys";
++
++		user {
++			label = "user";
++			gpios = <&gpio 13 GPIO_ACTIVE_LOW>;
++			linux,code = <BTN_0>;
++			linux,input-type = <EV_SW>;
++		};
++
++		reset {
++			label = "reset";
++			gpios = <&gpio 18 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RESTART>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		usr {
++			label = "green:usr";
++			gpios = <&gpio 0 GPIO_ACTIVE_HIGH>;
++		};
++
++		led_sys: sys {
++			label = "blue:sys";
++			gpios = <&gpio 16 GPIO_ACTIVE_HIGH>;
++		};
++	};
++};
++
++&spi0 {
++	status = "okay";
++
++	flash@0 {
++		compatible = "jedec,spi-nor";
++		reg = <0>;
++		spi-max-frequency = <50000000>;
++		m25p,fast-read;
++		broken-flash-reset;		
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "u-boot";
++				reg = <0x0 0x30000>;
++				read-only;
++			};
++
++			partition@30000 {
++				label = "u-boot-env";
++				reg = <0x30000 0x10000>;
++				read-only;
++			};
++
++			partition@40000 {
++				label = "factory";
++				reg = <0x40000 0x10000>;
++				read-only;
++
++				nvmem-layout {
++					compatible = "fixed-layout";
++					#address-cells = <1>;
++					#size-cells = <1>;
++
++					macaddr_factory_e000: macaddr@e000 {
++						reg = <0xe000 0x6>;
++					};
++
++					macaddr_factory_e006: macaddr@e006 {
++						reg = <0xe006 0x6>;
++					};
++				};
++			};
++
++			firmware: partition@50000 {
++				compatible = "denx,uimage";
++				label = "firmware";
++				/* reg property is set based on flash size in DTS files */
++			};
++		};
++	};
++};
++
++&gmac0 {
++	nvmem-cells = <&macaddr_factory_e000>;
++	nvmem-cell-names = "mac-address";
++};
++
++&gmac1 {
++	status = "okay";
++	label = "wan";
++	phy-handle = <&ethphy0>;
++
++	nvmem-cells = <&macaddr_factory_e006>;
++	nvmem-cell-names = "mac-address";
++};
++
++&ethphy0 {
++	/delete-property/ interrupts;
++};
++
++&switch0 {
++	ports {
++		port@1 {
++			status = "okay";
++			label = "lan";
++		};
++	};	
++};
++
++&pcie {
++	status = "disabled";
++};
++
++&sdhci {
++	status = "okay";
++};
++
++&state_default {
++	gpio {
++		groups = "uart2", "jtag", "wdt";
++		function = "gpio";
++	};
++};
++
+diff --git a/target/linux/ramips/image/mt7621.mk b/target/linux/ramips/image/mt7621.mk
+index 96653683de..3d988ae273 100644
+--- a/target/linux/ramips/image/mt7621.mk
++++ b/target/linux/ramips/image/mt7621.mk
+@@ -2196,6 +2196,32 @@ define Device/linksys_re7000
+ endef
+ TARGET_DEVICES += linksys_re7000
+ 
++define Device/melonpi-m21-16m
++  $(Device/dsa-migration)
++  $(Device/uimage-lzma-loader)  
++  IMAGE_SIZE := 16064k
++  DEVICE_VENDOR := MelonPi
++  DEVICE_MODEL := M21
++  DEVICE_VARIANT := 16M
++  DEVICE_PACKAGES := kmod-mmc-mtk kmod-usb3 kmod-usb-ledtrig-usbport \
++  kmod-usb-net-qmi-wwan kmod-usb-serial-option kmod-usb-net-rndis \
++  -wpad-basic-mbedtls -uboot-envtools
++endef
++TARGET_DEVICES += melonpi-m21-16m
++
++define Device/melonpi-m21-32m
++  $(Device/dsa-migration)
++  $(Device/uimage-lzma-loader)
++  IMAGE_SIZE := 32448k
++  DEVICE_VENDOR := MelonPi
++  DEVICE_MODEL := M21
++  DEVICE_VARIANT := 32M
++  DEVICE_PACKAGES := kmod-mmc-mtk kmod-usb3 kmod-usb-ledtrig-usbport \
++  kmod-usb-net-qmi-wwan kmod-usb-serial-option kmod-usb-net-rndis \
++  -wpad-basic-mbedtls -uboot-envtools
++endef
++TARGET_DEVICES += melonpi-m21-32m
++
+ define Device/maginon_mc-1200ac
+   $(Device/dsa-migration)
+   DEVICE_VENDOR := Maginon
+diff --git a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
+index cf0515b0d3..b98f42841a 100644
+--- a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
++++ b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
+@@ -85,6 +85,8 @@ ramips_setup_interfaces()
+ 	genexis,pulse-ex400|\
+ 	humax,e10|\
+ 	keenetic,kn-3510|\
++	melonpi,m21-16m|\
++	melonpi,m21-32m|\
+ 	maginon,mc-1200ac|\
+ 	meig,slt866|\
+ 	openfi,5pro|\
+diff --git a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
+index 4e1aab2763..2d37b3d62d 100644
+--- a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
++++ b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
+@@ -51,6 +51,7 @@ platform_do_upgrade() {
+ 			fw_setenv boot_from firmware1 || exit 1
+ 		fi
+ 		;;
++	melonpi,m21|\
+ 	mikrotik,ltap-2hnd|\
+ 	mikrotik,routerboard-750gr3|\
+ 	mikrotik,routerboard-760igs|\
+-- 
+2.39.5
+

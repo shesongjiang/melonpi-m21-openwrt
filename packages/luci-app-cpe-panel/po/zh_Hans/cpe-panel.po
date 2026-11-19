@@ -1,0 +1,251 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Overview"
+msgstr "总览"
+
+msgid "Network ready"
+msgstr "网络连接正常"
+
+msgid "Network needs attention"
+msgstr "网络需要检查"
+
+msgid "Connected devices"
+msgstr "台已连接设备"
+
+msgid "View network"
+msgstr "查看网络"
+
+msgid "Open cellular"
+msgstr "打开蜂窝网络"
+
+msgid "System overview"
+msgstr "系统概览"
+
+msgid "Network overview"
+msgstr "网络总览"
+
+msgid "Network health"
+msgstr "网络健康状态"
+
+msgid "Router online"
+msgstr "路由器运行正常"
+
+msgid "Uplink"
+msgstr "上联"
+
+msgid "Uplink convergence"
+msgstr "上联汇聚"
+
+msgid "%d / 2 available"
+msgstr "%d / 2 可用"
+
+msgid "Interface status"
+msgstr "接口状态"
+
+msgid "Modem"
+msgstr "Modem"
+
+msgid "Ethernet WAN"
+msgstr "有线网口"
+
+msgid "Active path"
+msgstr "活动路径"
+
+msgid "Standby online"
+msgstr "在线待命"
+
+msgid "MWAN3 offline"
+msgstr "MWAN3 判定离线"
+
+msgid "Not configured"
+msgstr "未配置"
+
+msgid "No available uplink"
+msgstr "没有可用上联"
+
+msgid "No uplink"
+msgstr "未检测到上联"
+
+msgid "Local devices"
+msgstr "本地设备"
+
+msgid "All local devices"
+msgstr "全部本地设备"
+
+msgid "Cellular modem"
+msgstr "蜂窝模块"
+
+msgid "Internet"
+msgstr "互联网"
+
+msgid "Online"
+msgstr "已联网"
+
+msgid "Offline"
+msgstr "未联网"
+
+msgid "Interface"
+msgstr "接口"
+
+msgid "Protocol"
+msgstr "协议"
+
+msgid "IPv4 address"
+msgstr "IPv4 地址"
+
+msgid "Gateway"
+msgstr "网关"
+
+msgid "Manage interfaces"
+msgstr "管理接口"
+
+msgid "Wireless"
+msgstr "无线网络"
+
+msgid "Active radios"
+msgstr "已启用射频"
+
+msgid "Networks"
+msgstr "无线网络"
+
+msgid "Wireless clients"
+msgstr "无线客户端"
+
+msgid "LAN clients"
+msgstr "LAN 网口客户端"
+
+msgid "Manage wireless"
+msgstr "管理无线"
+
+msgid "Cellular"
+msgstr "蜂窝网络"
+
+msgid "Modem detected"
+msgstr "已检测到模块"
+
+msgid "No modem detected"
+msgstr "未检测到模块"
+
+msgid "Model"
+msgstr "型号"
+
+msgid "Operator"
+msgstr "运营商"
+
+msgid "Network type"
+msgstr "网络类型"
+
+msgid "Signal"
+msgstr "信号"
+
+msgid "Estimated from radio signal level"
+msgstr "根据无线信号强度估算"
+
+msgid "Signal strength unavailable"
+msgstr "暂无信号数据"
+
+msgid "Open QModem"
+msgstr "打开 QModem"
+
+msgid "Router"
+msgstr "路由器"
+
+msgid "Hostname"
+msgstr "主机名"
+
+msgid "Firmware"
+msgstr "固件"
+
+msgid "Kernel"
+msgstr "内核"
+
+msgid "Uptime"
+msgstr "运行时间"
+
+msgid "Memory"
+msgstr "内存"
+
+msgid "System load"
+msgstr "系统负载"
+
+msgid "Connected clients"
+msgstr "已连接设备"
+
+msgid "No active clients"
+msgstr "暂无活动设备"
+
+msgid "IP address"
+msgstr "IP 地址"
+
+msgid "MAC address"
+msgstr "MAC 地址"
+
+msgid "Connection"
+msgstr "连接方式"
+
+msgid "Wired"
+msgstr "有线"
+
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+msgid "Quick actions"
+msgstr "快捷操作"
+
+msgid "Network"
+msgstr "网络"
+
+msgid "Firmware upgrade"
+msgstr "固件升级"
+
+msgid "Reboot"
+msgstr "重启"
+
+msgid "Advanced settings"
+msgstr "高级设置"
+
+msgid "Unknown"
+msgstr "未知"
+
+msgid "Cooling"
+msgstr "散热"
+
+msgid "System temperature"
+msgstr "系统温度"
+
+msgid "Fan policy"
+msgstr "风扇策略"
+
+msgid "Fan level"
+msgstr "风扇档位"
+
+msgid "Thermal zone"
+msgstr "温控区域"
+
+msgid "Automatic"
+msgstr "自动"
+
+msgid "Unavailable"
+msgstr "不可用"
+
+msgid "Wireless bridge"
+msgstr "无线桥接"
+
+msgid "Internet connected"
+msgstr "已连接互联网"
+
+msgid "No Internet connection"
+msgstr "未连接互联网"
+
+msgid "No SIM card"
+msgstr "未插入 SIM 卡"
+
+msgid "Not connected"
+msgstr "未连接"
+
+msgid "Connection status"
+msgstr "连接状态"
+
+msgid "SIM status"
+msgstr "SIM 状态"

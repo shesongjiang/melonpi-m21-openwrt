@@ -1,0 +1,18 @@
+# 构建产物
+/bin/
+/build_dir/
+/staging_dir/
+/tmp/
+/dl/
+/feeds/
+/logs/
+*.bin
+*.img
+*.log
+/.config
+/.config.old
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+*.swp

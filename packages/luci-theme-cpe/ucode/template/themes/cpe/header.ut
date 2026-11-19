@@ -1,0 +1,113 @@
+{#
+ Copyright 2026
+ Licensed to the public under the Apache License 2.0.
+-#}
+
+{%
+	import { getuid, getspnam } from 'luci.core';
+
+	const boardinfo = ubus.call('system', 'board');
+	http.prepare_content('text/html; charset=UTF-8');
+-%}
+
+<!DOCTYPE html>
+<html lang="{{ dispatcher.lang }}">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="darkreader-lock">
+	<title>{{ striptags(`${boardinfo.hostname ?? '?'}${dispatched?.title ? ` | ${_(dispatched.title)}` : ''}`) }}</title>
+	<link rel="stylesheet" href="{{ media }}/foundation.css?v=20260906-2">
+	<link rel="stylesheet" href="{{ media }}/cascade.css?v=20260906-1">
+	<link rel="icon" href="{{ media }}/images/doge-icons8.png" type="image/png">
+	{% if (node?.css): %}
+	<link rel="stylesheet" href="{{ resource }}/{{ node.css }}">
+	{% endif %}
+	{% if (css): %}
+	<style title="text/css">{{ css }}</style>
+	{% endif %}
+	<script src="{{ dispatcher.build_url('admin/translations', dispatcher.lang) }}"></script>
+	<script src="{{ resource }}/cbi.js"></script>
+</head>
+<body class="lang_{{ dispatcher.lang }}" data-page="{{ entityencode(join('-', ctx.request_path), true) }}">
+	{% if (!blank_page): %}
+	<div id="cpe-shell">
+		<aside id="cpe-sidebar">
+			<a class="cpe-brand" href="{{ dispatcher.build_url('admin', 'cpe', 'overview') }}">
+				<img class="cpe-brand-mark" src="{{ media }}/images/doge-icons8.png" alt="">
+				<span>
+					<strong>NetDogg</strong>
+					<small>{{ striptags(boardinfo.model ?? version.distname) }}</small>
+				</span>
+			</a>
+			<nav id="mainmenu" aria-label="{{ _('Navigation') }}"></nav>
+			<div class="cpe-sidebar-footer">
+				<span>{{ version.distname }}</span>
+				<small>{{ version.distversion }} {{ version.distrevision }}</small>
+			</div>
+		</aside>
+
+		<div id="cpe-backdrop"></div>
+
+		<div id="cpe-workspace">
+			<header id="cpe-topbar">
+				<button id="cpe-nav-toggle" type="button" title="{{ _('Navigation') }}" aria-label="{{ _('Navigation') }}">
+					<svg aria-hidden="true"><use href="{{ media }}/icons.svg#menu"></use></svg>
+				</button>
+				<div class="cpe-page-title">
+					<span>{{ _(dispatched?.title ?? 'NetDogg') }}</span>
+				</div>
+				<div class="cpe-topbar-meta">
+					<div id="cpe-language" class="cpe-language" data-current="{{ dispatcher.lang }}" aria-label="{{ _('Language') }}">
+						<button type="button" data-lang="zh_cn">中</button>
+						<button type="button" data-lang="en">EN</button>
+					</div>
+					<span id="indicators"></span>
+				</div>
+			</header>
+
+			<div id="modemenu" hidden></div>
+			<main id="maincontent">
+				{% if (getuid() == 0 && getspnam('root')?.pwdp === ''): %}
+				<section class="cpe-password-card" role="alert">
+					<header class="cpe-password-card__header">
+						<span class="cpe-password-card__icon" aria-hidden="true">
+						<svg><use href="{{ media }}/icons.svg#shield"></use></svg>
+						</span>
+						<h2>{{ _('No password set!') }}</h2>
+					</header>
+					<div class="cpe-password-card__body">
+						<p>{{ _('There is no password set on this router. Please configure a root password to protect the web interface.') }}</p>
+					</div>
+					{% if (dispatcher.lookup('admin/system/admin')): %}
+					<footer class="cpe-password-card__footer">
+						<a class="cpe-password-card__link" href="{{ dispatcher.build_url('admin/system/admin') }}">{{ _('Go to password configuration...') }}</a>
+					</footer>
+					{% endif %}
+				</section>
+				{% endif %}
+
+				{% if (boardinfo.rootfs_type == 'initramfs'): %}
+				<div class="alert-message warning">
+					<h4>{{ _('System running in recovery (initramfs) mode.') }}</h4>
+					<p>{{ _('No changes to settings will be stored and are lost after rebooting. This mode should only be used to install a firmware upgrade') }}</p>
+					{% if (dispatcher.lookup('admin/system/flash')): %}
+					<div class="right"><a class="btn" href="{{ dispatcher.build_url('admin/system/flash') }}">{{ _('Go to firmware upgrade...') }}</a></div>
+					{% endif %}
+				</div>
+				{% endif %}
+
+				<noscript>
+					<div class="alert-message warning"><p>{{ _('JavaScript required!') }}</p></div>
+				</noscript>
+
+				<div id="tabmenu" style="display:none"></div>
+	{% else %}
+	<div class="cpe-login-shell">
+		<div class="cpe-login-brand">
+			<img class="cpe-brand-mark" src="{{ media }}/images/doge-icons8.png" alt="">
+			<strong>NetDogg</strong>
+			<span>{{ striptags(boardinfo.model ?? version.distname) }}</span>
+		</div>
+		<main id="maincontent" class="cpe-login-main">
+	{% endif %}

@@ -1,0 +1,239 @@
+﻿From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: melonpi-m21 <melonpi-m21@users.noreply.github.com>
+Date: Wed, 19 Nov 2026 01:30:00 +0800
+Subject: [PATCH] ramips: add support for MelonPi M21
+
+Add a single-profile (16 MiB SPI NOR) board definition for MelonPi M21,
+based on MediaTek MT7621.
+
+Hardware:
+- MT7621 (880 MHz, 4 threads), 256 MiB DDR passed by the bootloader
+- 16 MiB SPI NOR: u-boot 192K, u-boot-env 64K, factory 64K,
+  firmware 16064K (0x50000-0x1000000)
+- 1x WAN (gmac1) + 1x LAN (MT7530 switch port 1)
+- USB 3.0 and microSD (sdhci), no wireless module
+- LEDs: GPIO0 green:sys, GPIO16 blue:power, both active high
+- Keys: GPIO13 user (EV_SW), GPIO18 reset, both active low
+
+The PCIe controller, both PCIe PHYs and the PCIe pinctrl group are
+removed with /delete-node/ because this board has no PCIe devices.
+
+Tested on ImmortalWrt master c4c69cfede1bd4a28fa01b9079a7eb61ef4fed4a;
+the resulting squashfs sysupgrade image is 13,959,708 bytes and fits
+the 16064 KiB firmware partition.
+
+Signed-off-by: melonpi-m21 <melonpi-m21@users.noreply.github.com>
+---
+ target/linux/ramips/dts/mt7621_melonpi-m21.dts     | 153 ++++++++++++++
+ target/linux/ramips/image/mt7621.mk                |  13 +
+ .../mt7621/base-files/etc/board.d/02_network       |   1 +
+ .../mt7621/base-files/lib/upgrade/platform.sh      |   1 +
+ 4 files changed, 168 insertions(+)
+
+diff --git a/target/linux/ramips/dts/mt7621_melonpi-m21.dts b/target/linux/ramips/dts/mt7621_melonpi-m21.dts
+new file mode 100644
+index 0000000..5339ecd
+--- /dev/null
++++ b/target/linux/ramips/dts/mt7621_melonpi-m21.dts
+@@ -0,0 +1,153 @@
++// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
++
++#include "mt7621.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++
++/ {
++	compatible = "melonpi,m21", "mediatek,mt7621-soc";
++	model = "MelonPi M21";
++
++	aliases {
++		led-boot = &led_sys;
++		led-failsafe = &led_sys;
++		led-running = &led_sys;
++		led-upgrade = &led_sys;
++		label-mac-device = &gmac0;
++	};
++
++	chosen {
++		bootargs = "console=ttyS0,115200";
++	};
++
++	keys {
++		compatible = "gpio-keys";
++
++		user {
++			label = "user";
++			gpios = <&gpio 13 GPIO_ACTIVE_LOW>;
++			linux,code = <BTN_0>;
++			linux,input-type = <EV_SW>;
++		};
++
++		reset {
++			label = "reset";
++			gpios = <&gpio 18 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RESTART>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led_sys: sys {
++			label = "green:sys";
++			gpios = <&gpio 0 GPIO_ACTIVE_HIGH>;
++		};
++
++		power {
++			label = "blue:power";
++			gpios = <&gpio 16 GPIO_ACTIVE_HIGH>;
++		};
++	};
++};
++
++&spi0 {
++	status = "okay";
++
++	flash@0 {
++		compatible = "jedec,spi-nor";
++		reg = <0>;
++		spi-max-frequency = <50000000>;
++		m25p,fast-read;
++		broken-flash-reset;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "u-boot";
++				reg = <0x0 0x30000>;
++				read-only;
++			};
++
++			partition@30000 {
++				label = "u-boot-env";
++				reg = <0x30000 0x10000>;
++				read-only;
++			};
++
++			partition@40000 {
++				label = "factory";
++				reg = <0x40000 0x10000>;
++				read-only;
++
++				nvmem-layout {
++					compatible = "fixed-layout";
++					#address-cells = <1>;
++					#size-cells = <1>;
++
++					macaddr_factory_e000: macaddr@e000 {
++						reg = <0xe000 0x6>;
++					};
++
++					macaddr_factory_e006: macaddr@e006 {
++						reg = <0xe006 0x6>;
++					};
++				};
++			};
++
++			firmware: partition@50000 {
++				compatible = "denx,uimage";
++				label = "firmware";
++				reg = <0x50000 0xfb0000>;
++			};
++		};
++	};
++};
++
++&gmac0 {
++	nvmem-cells = <&macaddr_factory_e000>;
++	nvmem-cell-names = "mac-address";
++};
++
++&gmac1 {
++	status = "okay";
++	label = "wan";
++	phy-handle = <&ethphy0>;
++
++	nvmem-cells = <&macaddr_factory_e006>;
++	nvmem-cell-names = "mac-address";
++};
++
++&ethphy0 {
++	/delete-property/ interrupts;
++};
++
++&switch0 {
++	ports {
++		port@1 {
++			status = "okay";
++			label = "lan";
++		};
++	};
++};
++
++&sdhci {
++	status = "okay";
++};
++
++/delete-node/ &pcie;
++/delete-node/ &pcie0_phy;
++/delete-node/ &pcie2_phy;
++/delete-node/ &pcie_pins;
++
++&state_default {
++	gpio {
++		groups = "uart2", "jtag", "wdt";
++		function = "gpio";
++	};
++};
+diff --git a/target/linux/ramips/image/mt7621.mk b/target/linux/ramips/image/mt7621.mk
+index 6bea583..cdf93ec 100644
+--- a/target/linux/ramips/image/mt7621.mk
++++ b/target/linux/ramips/image/mt7621.mk
+@@ -2241,6 +2241,18 @@ define Device/linksys_re7000
+ endef
+ TARGET_DEVICES += linksys_re7000
+ 
++define Device/melonpi-m21
++  $(Device/dsa-migration)
++  $(Device/uimage-lzma-loader)
++  IMAGE_SIZE := 16064k
++  DEVICE_VENDOR := MelonPi
++  DEVICE_MODEL := M21
++  DEVICE_PACKAGES := kmod-mmc-mtk kmod-usb3 kmod-usb-ledtrig-usbport \
++	kmod-usb-net-qmi-wwan kmod-usb-serial-option kmod-usb-net-rndis \
++	-wpad-basic-mbedtls -uboot-envtools
++endef
++TARGET_DEVICES += melonpi-m21
++
+ define Device/maginon_mc-1200ac
+   $(Device/dsa-migration)
+   DEVICE_VENDOR := Maginon
+diff --git a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
+index 4b96ace..e863a68 100644
+--- a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
++++ b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
+@@ -91,6 +91,7 @@ ramips_setup_interfaces()
+ 	genexis,pulse-ex400|\
+ 	humax,e10|\
+ 	keenetic,kn-3510|\
++	melonpi,m21|\
+ 	maginon,mc-1200ac|\
+ 	meig,slt866|\
+ 	openfi,5pro|\
+diff --git a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
+index fdc53c0..100a260 100644
+--- a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
++++ b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
+@@ -51,6 +51,7 @@ platform_do_upgrade() {
+ 			fw_setenv boot_from firmware1 || exit 1
+ 		fi
+ 		;;
++	melonpi,m21|\
+ 	mikrotik,ltap-2hnd|\
+ 	mikrotik,routerboard-750gr3|\
+ 	mikrotik,routerboard-760igs|\
+

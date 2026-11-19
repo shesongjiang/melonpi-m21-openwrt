@@ -1,0 +1,48 @@
+{
+	"luci-app-cpe-panel": {
+		"description": "Grant access to the NetDogg overview",
+		"read": {
+			"ubus": {
+				"globalnet.fan": [
+					"info"
+				],
+				"iwinfo": [
+					"assoclist"
+				],
+				"luci-rpc": [
+					"getDHCPLeases",
+					"getHostHints",
+					"getNetworkDevices",
+					"getWirelessDevices"
+				],
+				"mwan3": [
+					"status"
+				],
+				"modem_ctrl": [
+					"info"
+				],
+				"network.device": [
+					"status"
+				],
+				"network.interface": [
+					"dump"
+				],
+				"system": [
+					"board",
+					"info"
+				],
+				"cpe_network": [
+					"status"
+				]
+			},
+			"uci": [
+				"dhcp",
+				"luci",
+				"mwan3",
+				"network",
+				"system",
+				"wireless"
+			]
+		}
+	}
+}
