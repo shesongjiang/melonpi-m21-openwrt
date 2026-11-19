@@ -1,0 +1,9 @@
+{
+	"admin/status/mwan3": {
+		"depends": {
+			"fs": {
+				"/usr/lib/luci-cpe-hide-status-mwan3": "file"
+			}
+		}
+	}
+}

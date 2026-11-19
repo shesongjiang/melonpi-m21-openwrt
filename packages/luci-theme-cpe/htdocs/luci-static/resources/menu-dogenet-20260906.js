@@ -306,6 +306,11 @@ return baseclass.extend({
 			return E([]);
 
 		children.forEach((child) => {
+			/* mwan3 registers the same page under both Status and Network.
+			   Keep the Network one and hide the duplicate in this theme. */
+			if (url === 'admin/status' && child.name === 'mwan3')
+				return;
+
 			const selected = L.env.dispatchpath[l] === child.name;
 			const descendants = ui.menu.getChildren(child);
 			const passwordEntry = url === 'admin/system' && child.name === 'admin';

@@ -249,3 +249,24 @@ msgstr "连接状态"
 
 msgid "SIM status"
 msgstr "SIM 状态"
+
+msgid "Network interfaces"
+msgstr "网络接口状态"
+
+msgid "No interfaces found."
+msgstr "未找到网络接口。"
+
+msgid "Connected"
+msgstr "已连接"
+
+msgid "Disconnected"
+msgstr "未连接"
+
+msgid "full duplex"
+msgstr "全双工"
+
+msgid "half duplex"
+msgstr "半双工"
+
+msgid "Status unavailable"
+msgstr "状态不可用"

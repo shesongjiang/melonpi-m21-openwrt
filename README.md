@@ -82,26 +82,27 @@ cd melonpi-m21-openwrt
 
 ## 预编译固件
 
-最新版本：`v1.2.0-20261119`（在 `v1.1.0-20261119` 基础上完成 CPE 界面可读性、交互与图标渲染优化）
+最新版本：`v1.3.0-20261119`（在 `v1.2.0-20261119` 基础上精简概览、移除无线/散热 UI 并新增接口状态）
 
 | 文件 | 大小 | SHA-256 |
 |---|---|---|
-| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `87a7e27e028ae93682f6fa10d559a64d1c808aa0f76e84adb06d656bedcd21fc` |
+| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `ea3bdcbbbfc7fdd687f1e6f23c5a37e16024eb3e9fecaff846b0ebcb8553824e` |
 
-- 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0 相同，UI 改动不影响内核哈希）
+- 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0/v1.2.0 相同，UI 改动不影响内核哈希）
 - metadata：`new_supported_devices = ["melonpi,m21"]`、`board = "melonpi,m21"`，设备上 `sysupgrade -T` 可通过
 - 镜像内含：`luci-theme-cpe`、`luci-app-cpe-panel`、`mwan3`、`qmodem` + `luci-app-qmodem-next`、`kmod-qmi_wwan_f/q/s`、`kmod-mmc-mtk`、`kmod-usb3`；不含 wpad/hostapd/kmod-mt76/kmod-mac80211
 - USB 存储：`kmod-usb-storage`、`kmod-usb-storage-uas`、`kmod-scsi-core`、`kmod-fs-vfat`、`kmod-fs-exfat`、`kmod-nls-cp437`（依赖 `kmod-nls-iso8859-1`），支持 **FAT32 / exFAT / ext4**，**NTFS 不支持**
 - 首次启动后 rootfs_data 约 **2.19 MB**（2176 KiB）
 
-### 本版 UI 变更（luci-theme-cpe / luci-app-cpe-panel）
+### 本版 UI 变更（v1.3.0）
 
-- 概览面板 5 秒刷新改为增量更新：不再整块重建 `.cpe-dashboard`，保留输入焦点与滚动位置，DOM 节点复用，`ResizeObserver` 单例并在重建/离页时断开。
-- 区分“请求失败”和“确实没有数据”：失败卡片显示明确错误文案与 Retry 按钮，不再显示成 `-`；上联探测失败时显示“连接状态未知”，不会误报“未连接互联网”。
-- 可读性：正文类文字不小于 12px，图节点标注 11px 并提高字重/对比度；次要文字灰由 `#86868b`（白底 3.62:1）改为 `#6e6e73`（白底 5.07:1），达到 WCAG AA。
-- 布局：1024px 视口（含 264px 侧栏）不再横向裁切；≤768px 单列，≤900px 侧栏收起。
-- 图标渲染修复：LuCI 的 `E()` 用 `document.createElement()` 创建 `<use>` 时会落到 HTML 命名空间，导致外部 sprite 图标不显示；改为 `createElementNS(SVG_NS, …)` 并同时写入 `xlink:href`/`href`，侧栏、卡片、上联图、表格与按钮图标恢复显示。
-- 无障碍：菜单 `aria-expanded`、语言切换 `aria-pressed`、遮罩可键盘操作；可点击元素可聚焦。
+- 网络总览只保留一个标题（去掉 NetDogg 眉题与 Network health 区块标题），压缩头部与拓扑高度，下方内容不再被挤压。
+- 拓扑删除“无线桥接”节点和“无线客户端”区块；删除散热卡片及 `globalnet.fan` 请求（设备无 WiFi、无风扇）。
+- 原散热位置改为“网络接口状态”：展示 WAN/LAN 的 up/down、协议、链路速率、双工与 IPv4 地址，数据来自现有 LuCI network 接口；WAN 获取失败时显示“状态不可用”。
+- 路由器信息卡移到网络总览下方。
+- 状态菜单中重复的 MultiWAN 管理器隐藏，保留“网络”下的入口（menu.d 覆盖 + 主题侧过滤）。
+- 新增文案补全 zh_Hans 翻译。
+- 延续上一版：5 秒增量刷新、失败/空态区分、12px 正文与 AA 对比度、1024 无横向裁切、SVG 命名空间图标修复、菜单/语言无障碍。
 - 若浏览器仍显示旧样式或旧图标，请**硬刷新**一次（Ctrl+F5 / 清除站点缓存）；`dashboard_network.js` 本身不带版本参数。
 
 ### 用 U 盘扩展 overlay（extroot）

@@ -37,11 +37,6 @@ const callModemInfo = rpc.declare({
 	method: 'info'
 });
 
-const callFanInfo = rpc.declare({
-	object: 'globalnet.fan',
-	method: 'info'
-});
-
 const callMwan3Status = rpc.declare({
 	object: 'mwan3',
 	method: 'status',
@@ -262,13 +257,6 @@ function formatMemory(bytes) {
 	return '%1024.1mB'.format(bytes);
 }
 
-function formatTemperature(millicelsius) {
-	if (!Number.isFinite(millicelsius))
-		return '-';
-
-	return '%0.1f C'.format(millicelsius / 1000);
-}
-
 function normalizeModemKey(value) {
 	return String(value || '')
 		.trim()
@@ -329,22 +317,16 @@ return view.extend({
 			soft(callSystemBoard(), {}),
 			soft(callSystemInfo(), {}),
 			soft(network.getWANNetworks(), []),
-			soft(network.getWifiDevices(), []),
-			soft(network.getWifiNetworks(), []),
 			soft(network.getHostHints(), null),
 			soft(callDHCPLeases(), {}),
 			soft(callModemInfo(), {}),
-			soft(callFanInfo(), {}),
 			soft(network.getNetwork('lan'), null),
 			soft(callMwan3Status(), {}),
 			soft(uci.load('mwan3'), null)
-		]).then((data) => {
-			const wifiNetworks = valueOf(data[4], []) || [];
-			return Promise.all(wifiNetworks.map((wifi) =>
-				soft(wifi.getAssocList(), [])
-			)).then((associations) => soft(callNetworkHealth(), {}).then((health) =>
-				data.concat([associations, health])));
-		});
+		]).then((data) => Promise.all([
+			soft(callNetworkHealth(), {}),
+			soft(network.getDevices(), [])
+		]).then((extra) => data.concat(extra)));
 	},
 
 	card(title, iconName, body, options) {
@@ -509,9 +491,7 @@ return view.extend({
 		};
 		const sorted = names.slice().sort((a, b) => score(b) - score(a));
 		const cellularName = sorted.find((name) => this.isCellularInterface(name, modemInterfaces));
-		const bridgeName = sorted.find((name) => name !== cellularName &&
-			/(wbridge|wireless.?bridge|relay|repeater)/i.test(name));
-		const otherNames = sorted.filter((name) => name !== cellularName && name !== bridgeName);
+		const otherNames = sorted.filter((name) => name !== cellularName);
 		const wanName = otherNames.find((name) => String(name).toLowerCase() === 'wan') ||
 			otherNames.find((name) => /^(wan|eth|ethernet)/i.test(name)) || otherNames[0];
 
@@ -549,7 +529,6 @@ return view.extend({
 
 		const routes = [
 			route('cellular', cellularName),
-			route('bridge', bridgeName),
 			route('wan', wanName)
 		];
 		const onlineRoutes = routes.filter((item) => item.online);
@@ -578,7 +557,6 @@ return view.extend({
 
 	uplinkRouteNode(route) {
 		const cellular = route.kind === 'cellular';
-		const bridge = route.kind === 'bridge';
 		let stateLabel = _('Unavailable');
 
 		if (route.unknown)
@@ -597,11 +575,11 @@ return view.extend({
 				(route.active ? ' is-active' : ''),
 			'href': cellular
 				? L.url('admin', 'modem', 'qmodem')
-				: L.url('admin', 'network', bridge ? 'wireless' : 'network')
+				: L.url('admin', 'network', 'network')
 		}, [
-			E('span', { 'class': 'cpe-uplink-route__icon' }, [ icon(cellular ? 'radio' : bridge ? 'wifi' : 'network') ]),
+			E('span', { 'class': 'cpe-uplink-route__icon' }, [ icon(cellular ? 'radio' : 'network') ]),
 			E('span', { 'class': 'cpe-uplink-route__copy' }, [
-				E('small', {}, [ cellular ? _('Modem') : bridge ? _('Wireless bridge') : _('Ethernet WAN') ]),
+				E('small', {}, [ cellular ? _('Modem') : _('Ethernet WAN') ]),
 				E('strong', {}, [ route.name || _('Not configured') ]),
 				E('em', {}, [ stateLabel ])
 			]),
@@ -703,32 +681,26 @@ return view.extend({
 					probeUnknown ? 'is-unknown' : uplinks.online ? 'is-online' : 'is-offline')
 			]),
 			E('div', { 'class': 'cpe-mwan-flow__clients' }, [
-				E('a', { 'class': 'cpe-client-type', 'href': L.url('admin', 'network', 'wireless') }, [
-					E('span', { 'class': 'cpe-client-type__icon' }, [ icon('wifi') ]),
-					E('span', { 'class': 'cpe-client-type__copy' }, [
-						E('small', {}, [ _('Wireless clients') ]),
-						E('strong', {}, [ '%d'.format(clients.filter((client) => client.wireless).length) ])
-					])
-				]),
 				E('a', { 'class': 'cpe-client-type', 'href': L.url('admin', 'network', 'network') }, [
 					E('span', { 'class': 'cpe-client-type__icon' }, [ icon('network') ]),
 					E('span', { 'class': 'cpe-client-type__copy' }, [
 						E('small', {}, [ _('LAN clients') ]),
-						E('strong', {}, [ '%d'.format(clients.filter((client) => !client.wireless).length) ])
+						E('strong', {}, [ '%d'.format(clients.length) ])
 					])
 				])
 			])
 		]);
 		return E('section', { 'class': 'cpe-network-overview', 'aria-label': _('Network overview') }, [
 			E('header', { 'class': 'cpe-network-overview__header' }, [
-				E('div', {}, [
-					E('p', { 'class': 'cpe-network-overview__eyebrow' }, [ 'NetDogg' ]),
-					E('h1', {}, [ _('Network overview') ]),
-					E('p', {}, [ text(board.model) ])
-				]),
-				E('span', { 'class': 'cpe-network-overview__state ' + stateClass }, [
-					E('i', { 'aria-hidden': 'true' }),
-					stateText
+				E('h1', {}, [ _('Network overview') ]),
+				E('div', { 'class': 'cpe-network-overview__meta' }, [
+					E('span', { 'class': 'cpe-network-overview__updated' }, [
+						'%s %s'.format(_('Updated'), new Date().toLocaleTimeString())
+					]),
+					E('span', { 'class': 'cpe-network-overview__state ' + stateClass }, [
+						E('i', { 'aria-hidden': 'true' }),
+						stateText
+					])
 				])
 			]),
 			flow
@@ -775,27 +747,80 @@ return view.extend({
 		});
 	},
 
-	renderCooling(fanData) {
-		const fan = fanData.fan || {};
-		const current = Number(fan.current_state);
-		const maximum = Number(fan.max_state);
-		const available = !!fan.present && Number.isFinite(current) && Number.isFinite(maximum);
-		const level = available
-			? '%d / %d%s'.format(
-				current,
-				maximum,
-				maximum > 0 ? ' (%d%%)'.format(Math.round(current * 100 / maximum)) : ''
-			)
-			: '-';
+	renderInterfaces(wans, lan, devices, wansFailed) {
+		const devicesByName = {};
+		(devices || []).forEach((device) => {
+			const name = device && device.getName ? device.getName() : null;
+			if (name)
+				devicesByName[name] = device;
+		});
 
-		return this.card(_('Cooling'), 'fan', this.rows([
-			[ _('System temperature'), formatTemperature(Number(fanData.temperature)) ],
-			[ _('Fan policy'), available ? _('Automatic') : '-' ],
-			[ _('Fan level'), level ],
-			[ _('Thermal zone'), text(fanData.thermal_zone) ]
-		]), {
-			className: 'cpe-card--cooling',
-			badge: this.badge(available ? _('Automatic') : _('Unavailable'), available)
+		const networks = (wans || []).slice();
+		if (lan)
+			networks.push(lan);
+
+		const items = networks.map((net) => {
+			const name = net.getName();
+			const up = net.isUp();
+			const proto = net.getProtocol ? text(net.getProtocol()) : '-';
+			const addrs = net.getIPAddrs ? net.getIPAddrs() : [];
+			const address = addrs.find((addr) => /^\d+\.\d+\.\d+\.\d+/.test(addr)) || addrs[0] || '-';
+			const netDevice = net.getDevice ? net.getDevice() : null;
+			const deviceName = typeof netDevice === 'string'
+				? netDevice
+				: netDevice && netDevice.getName ? netDevice.getName() : null;
+			const device = deviceName ? devicesByName[deviceName] : null;
+			const speed = device && device.getSpeed ? device.getSpeed() : null;
+			const duplex = device && device.getDuplex ? device.getDuplex() : null;
+			let speedLabel = '-';
+
+			if (speed > 0)
+				speedLabel = '%d Mb/s'.format(speed) +
+					(duplex === 'full' ? ' · ' + _('full duplex') : duplex === 'half' ? ' · ' + _('half duplex') : '');
+			else if (speed === -1)
+				speedLabel = _('No link');
+
+			return {
+				name: name,
+				up: up,
+				detail: '%s · %s · %s'.format(up ? _('Connected') : _('Disconnected'), proto, speedLabel),
+				address: address
+			};
+		});
+
+		const upCount = items.filter((item) => item.up).length;
+		const unknown = !!wansFailed && !(wans || []).length;
+
+		if (unknown) {
+			items.unshift({
+				name: 'wan',
+				up: false,
+				unknown: true,
+				detail: _('Status unavailable'),
+				address: '-'
+			});
+		}
+
+		const badgeClass = unknown ? 'is-unknown'
+			: items.length && upCount === items.length ? 'is-online' : 'is-offline';
+		const body = items.length
+			? E('ul', { 'class': 'cpe-iface-list' }, items.map((item) =>
+				E('li', { 'class': 'cpe-iface ' + (item.unknown ? 'is-unknown' : item.up ? 'is-up' : 'is-down') }, [
+					E('span', { 'class': 'cpe-iface__dot', 'aria-hidden': 'true' }),
+					E('span', { 'class': 'cpe-iface__copy' }, [
+						E('strong', {}, [ item.name ]),
+						E('small', {}, [ item.detail ])
+					]),
+					E('span', { 'class': 'cpe-iface__address' }, [ item.address ])
+				])
+			))
+			: [ E('p', { 'class': 'cpe-card__empty' }, [ _('No interfaces found.') ]) ];
+
+		return this.card(_('Network interfaces'), 'network', body, {
+			className: 'cpe-card--interfaces',
+			badge: E('span', { 'class': 'cpe-badge ' + badgeClass }, [
+				unknown ? '-' : '%d/%d'.format(upCount, items.length)
+			])
 		});
 	},
 
@@ -821,7 +846,7 @@ return view.extend({
 		]), { className: 'cpe-card--system' });
 	},
 
-	collectClients(leases, associations, hints, lan) {
+	collectClients(leases, hints, lan) {
 		const byMac = {};
 		const dhcp = Array.isArray(leases.dhcp_leases) ? leases.dhcp_leases : [];
 		const lanCidrs = lan ? lan.getIPAddrs() : [];
@@ -833,7 +858,7 @@ return view.extend({
 		const lanAddress = (mac) => hintAddresses(mac).find((address) =>
 			!routerAddresses.has(address) && lanCidrs.some((cidr) => addressInSubnet(address, cidr))
 		);
-		const addClient = (mac, hostname, ip, wireless) => {
+		const addClient = (mac, hostname, ip) => {
 			mac = String(mac || '').toUpperCase();
 			if (!mac)
 				return;
@@ -843,8 +868,7 @@ return view.extend({
 				hostname: hostname || current.hostname ||
 					(hints && hints.getHostnameByMACAddr(mac)) || _('Unknown'),
 				ip: ip || current.ip || lanAddress(mac) || '-',
-				mac: mac,
-				wireless: !!wireless || !!current.wireless
+				mac: mac
 			};
 		};
 
@@ -861,13 +885,6 @@ return view.extend({
 					addClient(mac, hints.getHostnameByMACAddr(mac), ip);
 			});
 		}
-
-		(associations || []).forEach((stations) => {
-			(stations || []).forEach((station) => {
-				const mac = String(station.mac || '').toUpperCase();
-				addClient(mac, null, lanAddress(mac), true);
-			});
-		});
 
 		return Object.values(byMac).sort((a, b) => a.hostname.localeCompare(b.hostname));
 	},
@@ -893,7 +910,7 @@ return view.extend({
 				E('tbody', {}, clients.length ? clients.map((client) => E('tr', {}, [
 					E('td', { 'data-title': _('Hostname') }, [
 						E('span', { 'class': 'cpe-client-name' }, [
-							icon(client.wireless ? 'wifi' : 'monitor'),
+							icon('monitor'),
 							E('span', {}, [ client.hostname ])
 						])
 					]),
@@ -913,7 +930,6 @@ return view.extend({
 	renderActions() {
 		const actions = [
 			[ 'network', _('Network'), [ 'admin', 'network', 'network' ] ],
-			[ 'wifi', _('Wireless'), [ 'admin', 'network', 'wireless' ] ],
 			[ 'radio', _('Cellular'), [ 'admin', 'modem', 'qmodem' ] ],
 			[ 'upload', _('Firmware upgrade'), [ 'admin', 'system', 'flash' ] ],
 			[ 'power', _('Reboot'), [ 'admin', 'system', 'reboot' ] ],
@@ -935,36 +951,33 @@ return view.extend({
 		const board = valueOf(data[0], {});
 		const system = valueOf(data[1], {});
 		const wans = valueOf(data[2], []);
-		const hints = valueOf(data[5], null);
-		const leases = valueOf(data[6], {});
-		const modem = valueOf(data[7], {});
-		const fan = valueOf(data[8], {});
-		const lan = valueOf(data[9], null);
-		const mwan = valueOf(data[10], {});
-		const associations = (data[12] || []).map((entry) => valueOf(entry, []));
-		const health = valueOf(data[13], {});
-		const healthKnown = !failed(data[13]);
+		const hints = valueOf(data[3], null);
+		const leases = valueOf(data[4], {});
+		const modem = valueOf(data[5], {});
+		const lan = valueOf(data[6], null);
+		const mwan = valueOf(data[7], {});
+		const health = valueOf(data[9], {});
+		const devices = valueOf(data[10], []);
+		const healthKnown = !failed(data[9]);
 		const wansFailed = failed(data[2]);
-		const clientsFailed = failed(data[5]) && failed(data[6]);
-		const clients = this.collectClients(leases, associations, hints, lan);
+		const clientsFailed = failed(data[3]) && failed(data[4]);
+		const interfacesFailed = failed(data[6]) && failed(data[9]);
+		const systemFailed = failed(data[0]) && failed(data[1]);
+		const clients = this.collectClients(leases, hints, lan);
 
 		return E('div', { 'class': 'cpe-dashboard' }, [
 			this.renderNetworkOverview(board, wans, mwan, clients, health, healthKnown, wansFailed),
+			systemFailed
+				? this.errorCard(_('Router'), 'router', 'cpe-card--system', _('Unable to load system information.'))
+				: this.renderSystem(board, system),
 			E('section', { 'class': 'cpe-details' }, [
-				E('div', { 'class': 'cpe-section-heading' }, [
-					E('h2', {}, [ icon('activity'), _('Network health') ]),
-					E('span', {}, [ '%s %s'.format(_('Updated'), new Date().toLocaleTimeString()) ])
-				]),
 				E('div', { 'class': 'cpe-grid cpe-grid--status' }, [
-				failed(data[7]) || failed(data[13])
-					? this.errorCard(_('Cellular'), 'radio', 'cpe-card--cellular', _('Unable to load modem status.'))
-					: this.renderModem(modem, health),
-				failed(data[8])
-					? this.errorCard(_('Cooling'), 'fan', 'cpe-card--cooling', _('Unable to load cooling status.'))
-					: this.renderCooling(fan),
-				failed(data[0]) && failed(data[1])
-					? this.errorCard(_('Router'), 'router', 'cpe-card--system', _('Unable to load system information.'))
-					: this.renderSystem(board, system)
+					failed(data[5]) || failed(data[9])
+						? this.errorCard(_('Cellular'), 'radio', 'cpe-card--cellular', _('Unable to load modem status.'))
+						: this.renderModem(modem, health),
+					interfacesFailed
+						? this.errorCard(_('Network interfaces'), 'network', 'cpe-card--interfaces', _('Unable to load interface status.'))
+						: this.renderInterfaces(wans, lan, devices, wansFailed)
 				])
 			]),
 			this.renderClients(clients, clientsFailed),
