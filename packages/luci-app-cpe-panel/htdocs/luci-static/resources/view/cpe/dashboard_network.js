@@ -1042,8 +1042,14 @@ return view.extend({
 	},
 
 	renderStorageRows(storage) {
+		const header = E('div', { 'class': 'cpe-iface-storage__header' }, [
+			E('span', { 'class': 'cpe-card__icon' }, [ icon('plug') ]),
+			E('h3', {}, [ _('External interfaces') ])
+		]);
+
 		if (!storage || storage.failed) {
 			return E('div', { 'class': 'cpe-iface-storage' }, [
+				header,
 				E('p', { 'class': 'cpe-card__empty' }, [
 					storage ? _('Unable to read storage information.') : '-'
 				])
@@ -1071,6 +1077,7 @@ return view.extend({
 		};
 
 		return E('div', { 'class': 'cpe-iface-storage' }, [
+			header,
 			E('ul', { 'class': 'cpe-iface-list' }, [
 				row(_('USB storage'), usb, _('No USB device detected')),
 				row(_('TF card'), tf, storage.mmc ? _('No card detected') : _('No card reader detected'))

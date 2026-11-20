@@ -300,3 +300,6 @@ msgstr "未挂载"
 
 msgid "Unable to read storage information."
 msgstr "无法读取存储信息。"
+
+msgid "External interfaces"
+msgstr "外部接口"
