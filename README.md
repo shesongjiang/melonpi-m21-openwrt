@@ -82,11 +82,11 @@ cd melonpi-m21-openwrt
 
 ## 预编译固件
 
-最新版本：`v1.3.0-20261119`（在 `v1.2.0-20261119` 基础上精简概览、移除无线/散热 UI 并新增接口状态）
+最新版本：`v1.4.0-20261120`（在 `v1.3.0-20261119` 基础上新增 USB/TF 存储状态卡）
 
 | 文件 | 大小 | SHA-256 |
 |---|---|---|
-| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `ea3bdcbbbfc7fdd687f1e6f23c5a37e16024eb3e9fecaff846b0ebcb8553824e` |
+| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `8f3efea1c94410b25ed2b25d9b735e725b5829f95e5c26133780cf31e46e4824` |
 
 - 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0/v1.2.0 相同，UI 改动不影响内核哈希）
 - metadata：`new_supported_devices = ["melonpi,m21"]`、`board = "melonpi,m21"`，设备上 `sysupgrade -T` 可通过
@@ -94,15 +94,13 @@ cd melonpi-m21-openwrt
 - USB 存储：`kmod-usb-storage`、`kmod-usb-storage-uas`、`kmod-scsi-core`、`kmod-fs-vfat`、`kmod-fs-exfat`、`kmod-nls-cp437`（依赖 `kmod-nls-iso8859-1`），支持 **FAT32 / exFAT / ext4**，**NTFS 不支持**
 - 首次启动后 rootfs_data 约 **2.19 MB**（2176 KiB）
 
-### 本版 UI 变更（v1.3.0）
+### 本版 UI 变更（v1.4.0）
 
-- 网络总览只保留一个标题（去掉 NetDogg 眉题与 Network health 区块标题），压缩头部与拓扑高度，下方内容不再被挤压。
-- 拓扑删除“无线桥接”节点和“无线客户端”区块；删除散热卡片及 `globalnet.fan` 请求（设备无 WiFi、无风扇）。
-- 原散热位置改为“网络接口状态”：展示 WAN/LAN 的 up/down、协议、链路速率、双工与 IPv4 地址，数据来自现有 LuCI network 接口；WAN 获取失败时显示“状态不可用”。
-- 路由器信息卡移到网络总览下方。
-- 状态菜单中重复的 MultiWAN 管理器隐藏，保留“网络”下的入口（menu.d 覆盖 + 主题侧过滤）。
-- 新增文案补全 zh_Hans 翻译。
-- 延续上一版：5 秒增量刷新、失败/空态区分、12px 正文与 AA 对比度、1024 无横向裁切、SVG 命名空间图标修复、菜单/语言无障碍。
+- 网络接口卡下方新增“USB 与 TF 存储”卡：设备名、文件系统、容量、挂载点，12px 字号。
+- 无 USB 设备显示“未检测到 USB 设备”；有读卡器无卡显示“未检测到存储卡”；无读卡器显示“未检测到 TF 接口”。
+- 数据仅通过 LuCI 只读 `fs` 读取 `/proc/partitions`、`/proc/mounts`、`/sys/class/mmc_host`，不挂载、不写入、不新增软件包。
+- 新增文案已补全 zh_Hans 翻译。
+- 延续 v1.3.0：单一总览标题、移除无线/散热 UI、接口状态卡、路由器卡下移、菜单去重、5 秒增量刷新、12px 正文与 AA 对比度、1024 无横向裁切、SVG 命名空间图标修复。
 - 若浏览器仍显示旧样式或旧图标，请**硬刷新**一次（Ctrl+F5 / 清除站点缓存）；`dashboard_network.js` 本身不带版本参数。
 
 ### 用 U 盘扩展 overlay（extroot）

@@ -1,4 +1,5 @@
 'use strict';
+'require fs';
 'require network';
 'require poll';
 'require rpc';
@@ -135,6 +136,23 @@ function text(value, fallback) {
 		return fallback || '-';
 
 	return String(value);
+}
+
+function formatBytes(bytes) {
+	if (!Number.isFinite(bytes) || bytes <= 0)
+		return null;
+
+	const units = [ 'B', 'KiB', 'MiB', 'GiB', 'TiB' ];
+	let value = bytes;
+	let unit = 0;
+
+	while (value >= 1024 && unit < units.length - 1) {
+		value /= 1024;
+		unit++;
+	}
+
+	const rounded = unit === 0 ? Math.round(value) : Math.round(value * 10) / 10;
+	return '%s %s'.format(rounded, units[unit]);
 }
 
 function soft(promise, fallback) {
@@ -325,8 +343,84 @@ return view.extend({
 			soft(uci.load('mwan3'), null)
 		]).then((data) => Promise.all([
 			soft(callNetworkHealth(), {}),
-			soft(network.getDevices(), [])
+			soft(network.getDevices(), []),
+			soft(this.loadStorage(), { failed: true, usb: [], tf: [], mmc: false })
 		]).then((extra) => data.concat(extra)));
+	},
+
+	loadStorage() {
+		return Promise.all([
+			soft(fs.read('/proc/partitions'), ''),
+			soft(fs.read('/proc/mounts'), ''),
+			soft(fs.list('/sys/class/mmc_host'), null)
+		]).then((result) => {
+			const partitions = result[0];
+			const mounts = result[1];
+			const hosts = result[2];
+			const storage = {
+				failed: !partitions.ok,
+				usb: [],
+				tf: [],
+				mmc: !!(hosts.ok && hosts.value && hosts.value.length)
+			};
+
+			if (!partitions.ok)
+				return storage;
+
+			const mounted = {};
+
+			(mounts.ok ? mounts.value : '').split('\n').forEach((line) => {
+				const fields = line.trim().split(/\s+/);
+
+				if (fields.length >= 3)
+					mounted[fields[0]] = {
+						mount: fields[1].replace(/\\040/g, ' '),
+						type: fields[2]
+					};
+			});
+
+			const byBase = {};
+
+			partitions.value.split('\n').forEach((line) => {
+				const fields = line.trim().split(/\s+/);
+
+				if (fields.length < 4)
+					return;
+
+				const blocks = parseInt(fields[2], 10);
+				const name = fields[3];
+
+				if (!Number.isFinite(blocks) || !/^(sd|mmcblk)/.test(name))
+					return;
+
+				const device = '/dev/' + name;
+				const base = name.replace(/p?\d+$/, '');
+				const target = mounted[device] || null;
+
+				if (!byBase[base])
+					byBase[base] = [];
+
+				byBase[base].push({
+					name: name,
+					device: device,
+					type: target ? target.type : null,
+					mount: target ? target.mount : null,
+					bytes: blocks * 1024
+				});
+			});
+
+			Object.values(byBase).forEach((group) => {
+				const volumes = group.length > 1
+					? group.filter((item) => item.name !== item.name.replace(/p?\d+$/, ''))
+					: group;
+
+				volumes.forEach((volume) => {
+					storage[/^mmcblk/.test(volume.name) ? 'tf' : 'usb'].push(volume);
+				});
+			});
+
+			return storage;
+		});
 	},
 
 	card(title, iconName, body, options) {
@@ -947,6 +1041,39 @@ return view.extend({
 		]);
 	},
 
+	renderStorage(storage) {
+		const usb = storage.usb || [];
+		const tf = storage.tf || [];
+		const total = usb.length + tf.length;
+		const row = (label, volumes, emptyText) => E('div', { 'class': 'cpe-storage__row' }, [
+			E('strong', { 'class': 'cpe-storage__label' }, [ label ]),
+			E('div', { 'class': 'cpe-storage__values' }, volumes.length
+				? volumes.map((volume) => E('span', { 'class': 'cpe-storage__volume' }, [
+					E('span', { 'class': 'cpe-storage__device' }, [ volume.device.replace('/dev/', '') ]),
+					E('small', {}, [
+						[ volume.type, formatBytes(volume.bytes), volume.mount || _('Not mounted') ]
+							.map((part) => part || '-')
+							.join(' · ')
+					])
+				]))
+				: [ E('span', { 'class': 'cpe-storage__empty' }, [ emptyText ]) ])
+		]);
+
+		const body = storage.failed
+			? [ E('p', { 'class': 'cpe-card-error' }, [ _('Unable to read storage information.') ]) ]
+			: [ E('div', { 'class': 'cpe-storage' }, [
+				row(_('USB storage'), usb, _('No USB device detected')),
+				row(_('TF card'), tf, storage.mmc ? _('No card detected') : _('No card reader detected'))
+			]) ];
+
+		return this.card(_('USB and TF storage'), 'archive', body, {
+			className: 'cpe-card--storage',
+			badge: E('span', { 'class': 'cpe-badge ' + (storage.failed ? 'is-unknown' : total ? 'is-online' : 'is-unknown') }, [
+				storage.failed ? '-' : total ? _('Detected') : _('Not detected')
+			])
+		});
+	},
+
 	renderDashboard(data) {
 		const board = valueOf(data[0], {});
 		const system = valueOf(data[1], {});
@@ -958,6 +1085,7 @@ return view.extend({
 		const mwan = valueOf(data[7], {});
 		const health = valueOf(data[9], {});
 		const devices = valueOf(data[10], []);
+		const storage = valueOf(data[11], { failed: true, usb: [], tf: [], mmc: false });
 		const healthKnown = !failed(data[9]);
 		const wansFailed = failed(data[2]);
 		const clientsFailed = failed(data[3]) && failed(data[4]);
@@ -977,7 +1105,8 @@ return view.extend({
 						: this.renderModem(modem, health),
 					interfacesFailed
 						? this.errorCard(_('Network interfaces'), 'network', 'cpe-card--interfaces', _('Unable to load interface status.'))
-						: this.renderInterfaces(wans, lan, devices, wansFailed)
+						: this.renderInterfaces(wans, lan, devices, wansFailed),
+					this.renderStorage(storage)
 				])
 			]),
 			this.renderClients(clients, clientsFailed),

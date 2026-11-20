@@ -270,3 +270,33 @@ msgstr "半双工"
 
 msgid "Status unavailable"
 msgstr "状态不可用"
+
+msgid "USB and TF storage"
+msgstr "USB 与 TF 存储"
+
+msgid "USB storage"
+msgstr "USB 存储"
+
+msgid "TF card"
+msgstr "TF 卡"
+
+msgid "Detected"
+msgstr "已检测到"
+
+msgid "Not detected"
+msgstr "未检测到"
+
+msgid "No USB device detected"
+msgstr "未检测到 USB 设备"
+
+msgid "No card detected"
+msgstr "未检测到存储卡"
+
+msgid "No card reader detected"
+msgstr "未检测到 TF 接口"
+
+msgid "Not mounted"
+msgstr "未挂载"
+
+msgid "Unable to read storage information."
+msgstr "无法读取存储信息。"
