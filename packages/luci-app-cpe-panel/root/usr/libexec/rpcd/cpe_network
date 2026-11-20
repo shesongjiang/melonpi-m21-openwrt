@@ -10,26 +10,88 @@ call)
  cache=/var/run/cpe-panel/network.json
  now=$(date +%s)
  if [ -s "$cache" ] && [ "$((now-$(stat -c %Y "$cache")))" -lt 10 ]; then cat "$cache"; exit 0; fi
- cellular='{}'
- if [ -r /usr/share/qmodem/tricascade-device.sh ]; then
-  . /usr/share/qmodem/tricascade-device.sh
-  for section in $(uci -q show qmodem | sed -n 's/^qmodem\.\([^.=]*\)=modem-device$/\1/p'); do
-   path=$(uci -q get "qmodem.$section.path")
-   tricascade_device "$path" || continue
-   data=$(/usr/share/qmodem/tricascade-api.sh "$section" status)
-   cellular=$(printf '%s' "$data" | jq -c --arg device "$(uci -q get qmodem.$section.network)" '{present:true,device:$device,model:"SG500M2-X",sim_status,connection,signal_valid,radio,band,lte_signal,nr_signal}')
-   break
-  done
- fi
- [ -n "$cellular" ] || cellular='{}'
+
+ modem_interfaces='[]'
+ cellular='{"present":false}'
+ have_cellular=0
+
+ # A modem is any qmodem "modem-device" section. Nothing here is model specific:
+ # the section name is the logical network, "network" is its data device, and all
+ # model/SIM/radio/signal values come from the qmodem ubus API.
+ for section in $(uci -q show qmodem | sed -n 's/^qmodem\.\([^.=]*\)=modem-device$/\1/p'); do
+  device=$(uci -q get "qmodem.$section.network")
+  state=$(uci -q get "qmodem.$section.state")
+  path=$(uci -q get "qmodem.$section.path")
+  if [ -n "$device" ]; then
+   modem_interfaces=$(printf '%s' "$modem_interfaces" | jq -c --arg i "$section" --arg d "$device" --arg p "$path" --arg s "$state" '. + [{interface:$i,device:$d,path:$p,state:$s}]')
+  fi
+  [ "$have_cellular" = 1 ] && continue
+  [ "$state" = disabled ] && continue
+
+  raw=$(ubus call qmodem info "{\"config_section\":\"$section\"}" 2>/dev/null)
+  kv=$(printf '%s' "$raw" | jq -c '[.modem_info[]? | select(.key != null and .value != null) | {(.key): (.value|tostring)}] | add // {}' 2>/dev/null)
+  case "$kv" in ''|'{}'|'null') kv='';; esac
+
+  if [ -n "$kv" ]; then
+   conn=$(ubus call qmodem get_connect_status "{\"config_section\":\"$section\"}" 2>/dev/null | jq -r '.connection_status // empty' 2>/dev/null)
+   radio_extra=$(ubus call qmodem network_info "{\"config_section\":\"$section\"}" 2>/dev/null | jq -r '[.modem_info[]? | select(.key == "Network Type") | .value][0] // empty' 2>/dev/null)
+   band=$(ubus call qmodem get_current_band "{\"config_section\":\"$section\"}" 2>/dev/null | jq -r '[.current_band.cells[]?.band][0] // empty' 2>/dev/null)
+   model=$(uci -q get "qmodem.$section.name")
+   cellular=$(jq -nc \
+    --argjson kv "$kv" \
+    --arg section "$section" --arg device "$device" \
+    --arg conn "$conn" --arg model "$model" \
+    --arg radio_extra "$radio_extra" --arg band "$band" '
+    ($kv["RSRP"] // $kv["rsrp"] // "" | tostring | tonumber? // null) as $rsrp |
+    ($kv["Network Type"] // $kv["network_type"] // $radio_extra // "") as $radio |
+    {
+     present: true,
+     section: $section,
+     interface: $section,
+     device: $device,
+     model: ($kv["Name"] // $kv["name"] // ($model | ascii_upcase) // ""),
+     manufacturer: ($kv["manufacturer"] // $kv["Manufacturer"] // ""),
+     sim_status: ($kv["SIM Status"] // $kv["sim_status"] // ""),
+     operator: ($kv["ISP"] // $kv["operator"] // ""),
+     connection: (if (($conn | ascii_downcase) == "yes" or ($conn | ascii_downcase) == "true" or ($conn | ascii_downcase) == "connected") then "connected" else "disconnected" end),
+     radio: $radio,
+     band: $band,
+     imei: ($kv["IMEI"] // $kv["imei"] // ""),
+     rsrp: $rsrp,
+     nr_signal: (if $rsrp != null and ($radio | test("NR|5G"; "i")) then $rsrp else null end),
+     lte_signal: (if $rsrp != null and (($radio | test("NR|5G"; "i")) | not) then $rsrp else null end),
+     signal_valid: ($rsrp != null)
+    }')
+   have_cellular=1
+  elif [ -r /usr/share/qmodem/tricascade-device.sh ] && [ -r /usr/share/qmodem/tricascade-api.sh ]; then
+   . /usr/share/qmodem/tricascade-device.sh
+   if tricascade_device "$path"; then
+    data=$(/usr/share/qmodem/tricascade-api.sh "$section" status)
+    model=$(uci -q get "qmodem.$section.name")
+    cellular=$(printf '%s' "$data" | jq -c \
+     --arg section "$section" --arg device "$device" --arg model "$model" '
+     {present:true,section:$section,interface:$section,device:$device,
+      model:($model | ascii_upcase),sim_status,connection,radio,
+      signal_valid,lte_signal,nr_signal}')
+    have_cellular=1
+   fi
+  fi
+ done
+
  interfaces='{}'
  for name in $(ubus call network.interface dump | jq -r '.interface[] | select(.interface!="lan" and .interface!="loopback" and .up==true) | select(any(.route[]?; (.target=="0.0.0.0" or .target=="::") and .mask==0)) | .interface'); do
   case "$name" in *[!a-zA-Z0-9_.-]*) continue;; esac
   state=$(ubus call "network.interface.$name" status)
   device=$(printf '%s' "$state" | jq -r '.l3_device // empty')
   case "$device" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
+  ip4=$(printf '%s' "$state" | jq -r '[."ipv4-address"[]?.address][0] // empty')
+  case "$ip4" in *[!0-9.]*) ip4='';; esac
   internet=false
-  if ping -I "$device" -c 1 -W 1 223.5.5.5 >/dev/null 2>&1 || ping -I "$device" -c 1 -W 1 119.29.29.29 >/dev/null 2>&1; then internet=true
+  # Bind the probe to the interface address. "ping -I <device>" follows the
+  # policy routing rules installed by mwan3 and can fail even when the link works.
+  if [ -n "$ip4" ] && ping -I "$ip4" -c 1 -W 1 223.5.5.5 >/dev/null 2>&1; then internet=true
+  elif [ -n "$ip4" ] && ping -I "$ip4" -c 1 -W 1 119.29.29.29 >/dev/null 2>&1; then internet=true
+  elif ping -I "$device" -c 1 -W 1 223.5.5.5 >/dev/null 2>&1 || ping -I "$device" -c 1 -W 1 119.29.29.29 >/dev/null 2>&1; then internet=true
   elif printf '%s' "$state" | jq -e 'any(.route[]?; .target=="::" and .mask==0)' >/dev/null; then
    ping6 -I "$device" -c 1 -W 1 2400:3200::1 >/dev/null 2>&1 && internet=true
   fi
@@ -37,7 +99,7 @@ call)
   if [ "$(printf '%s' "$cellular" | jq -r '.device // empty')" = "$device" ] && [ "$(printf '%s' "$cellular" | jq -r '.connection // empty')" != connected ]; then internet=false; fi
   interfaces=$(printf '%s' "$interfaces" | jq -c --arg name "$name" --arg device "$device" --argjson internet "$internet" '. + {($name):{device:$device,internet:$internet}}')
  done
- jq -nc --argjson interfaces "$interfaces" --argjson cellular "$cellular" --argjson now "$now" '{interfaces:$interfaces,cellular:$cellular,checked_at:$now,internet:any($interfaces[]; .internet==true)}' > "$cache.new" || exit 1
+ jq -nc --argjson interfaces "$interfaces" --argjson cellular "$cellular" --argjson modems "$modem_interfaces" --argjson now "$now" '{interfaces:$interfaces,cellular:$cellular,modemInterfaces:$modems,checked_at:$now,internet:any($interfaces[]; .internet==true)}' > "$cache.new" || exit 1
  mv "$cache.new" "$cache"
  cat "$cache"
  ;;

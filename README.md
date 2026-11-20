@@ -82,28 +82,27 @@ cd melonpi-m21-openwrt
 
 ## 预编译固件
 
-最新版本：`v1.4.2-20261120`（在接口卡内新增「外部接口」分区标题）
+最新版本：`v1.5.0-20261120`（模组自动识别、WAN 在线探测修复）
 
 | 文件 | 大小 | SHA-256 |
 |---|---|---|
-| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `fc8fa3784753acb9aa7c25c928d1c3b02eb0175d1e668254eb46ea9c0dad844a` |
+| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `5d2f0fb7b589c3b1ebdb4bcc916676f94e72819535b26d25b0a9245b045435a3` |
 
-- 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0–v1.4.1 相同，UI 改动不影响内核哈希）
+- 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0–v1.4.2 相同，UI 改动不影响内核哈希）
 - metadata：`new_supported_devices = ["melonpi,m21"]`、`board = "melonpi,m21"`，设备上 `sysupgrade -T` 可通过
 - 镜像内含：`luci-theme-cpe`、`luci-app-cpe-panel`、`mwan3`、`qmodem` + `luci-app-qmodem-next`、`kmod-qmi_wwan_f/q/s`、`kmod-mmc-mtk`、`kmod-usb3`；不含 wpad/hostapd/kmod-mt76/kmod-mac80211
 - USB 存储：`kmod-usb-storage`、`kmod-usb-storage-uas`、`kmod-scsi-core`、`kmod-fs-vfat`、`kmod-fs-exfat`、`kmod-nls-cp437`（依赖 `kmod-nls-iso8859-1`），支持 **FAT32 / exFAT / ext4**，**NTFS 不支持**
 - 首次启动后 rootfs_data 约 **2.19 MB**（2176 KiB）
 
-### 本版 UI 变更（v1.4.2）
+### 本版变更（v1.5.0）
 
-- 「网络接口状态」卡内新增分区标题「外部接口」，位于减淡分隔线下方、USB/TF 两行上方。
-- 标题与卡标题同规格：16px / 600 / `#1d1d1f` / line-height 1.3（20.8px）。
-- 标题图标复用卡标题的 29px 蓝色圆角块（`#0a84ff`）与 18px、2px 线宽白色图标，图形为 `plug`（外部接口）。
-- 新增 zh_Hans 词条 `External interfaces` / `外部接口`；空态与有设备均显示该标题。
-- 延续 v1.4.1：USB/TF 状态并入接口卡、独立存储卡已移除，行内展示设备名、文件系统、容量、挂载点。
-- 数据仅通过 LuCI 只读 `fs` 读取 `/proc/partitions`、`/proc/mounts`、`/sys/class/mmc_host`，不挂载、不写入、不新增软件包。
-- 延续 v1.4.0：存储信息只读采集、容量自动换算、失败态兜底。
-- 延续 v1.3.0：单一总览标题、移除无线/散热 UI、接口状态卡、路由器卡下移、菜单去重、5 秒增量刷新、12px 正文与 AA 对比度、1024 无横向裁切、SVG 命名空间图标修复。
+- `cpe_network` 改为通用模组识别：遍历 `/etc/config/qmodem` 的 `modem-device` 段，按 `network`/`path`/`state` 生成 `modemInterfaces`，不再只认 tricascade、不再写死 `SG500M2-X`。
+- 型号、SIM、制式、频段、信号取自 `qmodem info` / `get_connect_status` / `network_info` / `get_current_band`；tricascade 仅作兼容分支；无数据返回 `present:false`。
+- 前端蜂窝判定以后端 `modemInterfaces` / `cellular.interface` 为准，接口名正则只作兜底；无模组、无 SIM、未连接分别显示不同文案。
+- 接口探测绑定源 IP（`ping -I <ipv4>`），修复 mwan3 策略路由导致 WAN 被误判离线的问题。
+- 设备侧需要同步的配置（不随镜像分发）：`mwan3.2_1.add_by='modem'`；wan `track_ip` 建议改为 `223.5.5.5`、`119.29.29.29`。
+- 延续 v1.4.2：外部接口分区标题；v1.4.1：USB/TF 并入接口卡；v1.4.0：存储只读采集；v1.3.0：总览布局与图标修复。
+- 已知限制：本机模组当前 `qmodem` 报 `sim_status=miss`，SIM 相关字段为空，需检查 SIM 卡接触后再验收。
 - 若浏览器仍显示旧样式或旧图标，请**硬刷新**一次（Ctrl+F5 / 清除站点缓存）；`dashboard_network.js` 本身不带版本参数。
 
 ### 用 U 盘扩展 overlay（extroot）

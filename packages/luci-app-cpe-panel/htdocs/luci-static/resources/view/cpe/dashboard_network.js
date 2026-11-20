@@ -537,6 +537,22 @@ return view.extend({
 		const names = [];
 		const modemInterfaces = new Set();
 		const policyWeights = {};
+		const cellular = health && health.cellular || {};
+
+		// The backend owns modem detection: any qmodem modem-device section shows
+		// up in modemInterfaces, independent of the interface name or model.
+		(health && Array.isArray(health.modemInterfaces) ? health.modemInterfaces : []).forEach((item) => {
+			if (!item)
+				return;
+			if (item.interface)
+				modemInterfaces.add(String(item.interface).toLowerCase());
+			if (item.device)
+				modemInterfaces.add(String(item.device).toLowerCase());
+		});
+		[ cellular.interface, cellular.device ].forEach((value) => {
+			if (value)
+				modemInterfaces.add(String(value).toLowerCase());
+		});
 
 		try {
 			uci.sections('mwan3', 'interface').forEach((section) => {
@@ -584,7 +600,13 @@ return view.extend({
 				(networkByName[name] && networkByName[name].isUp() ? 10 : 0);
 		};
 		const sorted = names.slice().sort((a, b) => score(b) - score(a));
-		const cellularName = sorted.find((name) => this.isCellularInterface(name, modemInterfaces));
+		const cellularName = sorted.find((name) => this.isCellularInterface(name, modemInterfaces)) ||
+			sorted.find((name) => {
+				const net = networkByName[name];
+				const dev = net && net.getDevice ? net.getDevice() : null;
+				const devName = typeof dev === 'string' ? dev : dev && dev.getName ? dev.getName() : null;
+				return !!devName && String(devName).toLowerCase() === String(cellular.device || '').toLowerCase();
+			});
 		const otherNames = sorted.filter((name) => name !== cellularName);
 		const wanName = otherNames.find((name) => String(name).toLowerCase() === 'wan') ||
 			otherNames.find((name) => /^(wan|eth|ethernet)/i.test(name)) || otherNames[0];
@@ -805,23 +827,33 @@ return view.extend({
 		const entries = modems.reduce((all, modem) =>
 			all.concat(Array.isArray(modem.modem_info) ? modem.modem_info : []), []);
 		const cellular = health && health.cellular || {};
-        const detected = cellular.present === true || entries.length > 0;
-        const internet = Object.values(health && health.interfaces || {}).some((item) => item.device === cellular.device && item.internet === true);
-        const noSim = /ABSENT|NOT INSERTED|NO SIM/i.test(cellular.sim_status || '');
-        const connected = !noSim && (cellular.present ? cellular.connection === 'connected' && internet : Object.entries(health && health.interfaces || {}).some(([name, item]) => this.isCellularInterface(name, new Set()) && item.internet === true));
-        const statusLabel = !detected ? _('No modem detected') : noSim ? _('No SIM card') : connected ? _('Internet connected') : _('Not connected');
-		const signal = cellular.present ? (() => {
-            const value = cellular.nr_signal != null ? cellular.nr_signal : cellular.lte_signal;
-            return {percent: cellular.signal_valid && value != null ? Math.round(Math.max(0, Math.min(100, (value + 120) * 2))) : null, label: 'dBm', raw: value == null ? '-' : String(value)};
-        })() : modemSignal(entries);
+		const interfaces = health && health.interfaces || {};
+		const detected = cellular.present === true || entries.length > 0;
+		const noSim = /ABSENT|NOT INSERTED|NO SIM|(^|\s)MISS(ING)?(\s|$)/i.test(cellular.sim_status || '');
+		const entryConnected = /^(yes|1|true|connected)$/i.test(findModemValue(entries, [ 'connect_status', 'connection status', 'connection' ]));
+		const connected = !noSim && (cellular.present
+			? cellular.connection === 'connected'
+			: entryConnected && Object.entries(interfaces).some(([ name, item ]) => this.isCellularInterface(name, new Set()) && item.internet === true));
+		const statusLabel = !detected ? _('No modem detected')
+			: noSim ? _('No SIM card')
+			: connected ? _('Internet connected')
+			: _('Not connected');
+		const backendSignal = cellular.present ? (() => {
+			const value = cellular.nr_signal != null ? cellular.nr_signal : cellular.lte_signal;
+			return { percent: cellular.signal_valid && value != null ? Math.round(Math.max(0, Math.min(100, (value + 120) * 2))) : null, label: 'dBm', raw: value == null ? '-' : String(value) };
+		})() : null;
+		const signal = backendSignal && backendSignal.percent != null ? backendSignal : modemSignal(entries);
 		const signalLevel = signal.percent == null ? 0 : Math.ceil(signal.percent / 25);
+		const simStatus = noSim ? _('No SIM card') : text(cellular.present ? cellular.sim_status : findModemValue(entries, [ 'sim status', 'sim_status' ]));
+		const radio = cellular.present && cellular.radio ? cellular.radio : findModemValue(entries, [ 'network type', 'network_type', 'mode', 'rat' ]);
+		const operator = cellular.present && cellular.operator ? cellular.operator : findModemValue(entries, [ 'operator', 'isp' ]);
 
 		return this.card(_('Cellular'), 'radio', this.rows([
 			[ _('Model'), cellular.model || findModemValue(entries, [ 'name', 'model', 'module' ]) ],
-			[ _('Operator'), findModemValue(entries, [ 'operator', 'isp' ]) ],
-            [ _('Connection status'), statusLabel ],
-            [ _('SIM status'), noSim ? _('No SIM card') : text(cellular.sim_status) ],
-			[ _('Network type'), cellular.present ? text(cellular.radio) : findModemValue(entries, [ 'network_type', 'network type', 'mode', 'rat' ]) ],
+			[ _('Operator'), operator ],
+			[ _('Connection status'), statusLabel ],
+			[ _('SIM status'), simStatus ],
+			[ _('Network type'), radio ],
 			[ _('Signal'), E('span', {
 				'class': 'cpe-signal ' + (signal.percent == null ? 'is-unavailable' : signal.percent >= 60 ? 'is-strong' : signal.percent >= 30 ? 'is-medium' : 'is-weak'),
 				'title': signal.percent == null ? _('Signal strength unavailable') : _('Estimated from radio signal level')
