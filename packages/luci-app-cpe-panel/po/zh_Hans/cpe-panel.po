@@ -303,3 +303,6 @@ msgstr "无法读取存储信息。"
 
 msgid "External interfaces"
 msgstr "外部接口"
+
+msgid "Version"
+msgstr "版本"

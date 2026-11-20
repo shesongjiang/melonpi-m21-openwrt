@@ -960,15 +960,18 @@ return view.extend({
 		const load = Array.isArray(system.load)
 			? system.load.map((value) => (value / 65535).toFixed(2)).join(' / ')
 			: '-';
+		const release = board.release || {};
+		const version = release.revision || release.version;
 
 		return this.card(_('Router'), 'router', this.rows([
 			[ _('Model'), text(board.model) ],
 			[ _('Hostname'), text(board.hostname) ],
-			[ _('Firmware'), text(board.release && board.release.description) ],
+			[ _('Firmware'), text(release.description) ],
 			[ _('Kernel'), text(board.kernel) ],
 			[ _('Uptime'), system.uptime ? '%t'.format(system.uptime) : '-' ],
 			[ _('Memory'), memoryValue ],
-			[ _('System load'), load ]
+			[ _('System load'), load ],
+			[ _('Version'), text(version) ]
 		]), { className: 'cpe-card--system' });
 	},
 
