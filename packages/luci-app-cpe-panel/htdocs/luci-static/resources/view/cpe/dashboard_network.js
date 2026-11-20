@@ -841,7 +841,7 @@ return view.extend({
 		});
 	},
 
-	renderInterfaces(wans, lan, devices, wansFailed) {
+	renderInterfaces(wans, lan, devices, wansFailed, storage) {
 		const devicesByName = {};
 		(devices || []).forEach((device) => {
 			const name = device && device.getName ? device.getName() : null;
@@ -910,7 +910,7 @@ return view.extend({
 			))
 			: [ E('p', { 'class': 'cpe-card__empty' }, [ _('No interfaces found.') ]) ];
 
-		return this.card(_('Network interfaces'), 'network', body, {
+		return this.card(_('Network interfaces'), 'network', [ body, this.renderStorageRows(storage) ], {
 			className: 'cpe-card--interfaces',
 			badge: E('span', { 'class': 'cpe-badge ' + badgeClass }, [
 				unknown ? '-' : '%d/%d'.format(upCount, items.length)
@@ -1041,37 +1041,42 @@ return view.extend({
 		]);
 	},
 
-	renderStorage(storage) {
+	renderStorageRows(storage) {
+		if (!storage || storage.failed) {
+			return E('div', { 'class': 'cpe-iface-storage' }, [
+				E('p', { 'class': 'cpe-card__empty' }, [
+					storage ? _('Unable to read storage information.') : '-'
+				])
+			]);
+		}
+
 		const usb = storage.usb || [];
 		const tf = storage.tf || [];
-		const total = usb.length + tf.length;
-		const row = (label, volumes, emptyText) => E('div', { 'class': 'cpe-storage__row' }, [
-			E('strong', { 'class': 'cpe-storage__label' }, [ label ]),
-			E('div', { 'class': 'cpe-storage__values' }, volumes.length
-				? volumes.map((volume) => E('span', { 'class': 'cpe-storage__volume' }, [
-					E('span', { 'class': 'cpe-storage__device' }, [ volume.device.replace('/dev/', '') ]),
-					E('small', {}, [
-						[ volume.type, formatBytes(volume.bytes), volume.mount || _('Not mounted') ]
-							.map((part) => part || '-')
-							.join(' · ')
-					])
-				]))
-				: [ E('span', { 'class': 'cpe-storage__empty' }, [ emptyText ]) ])
-		]);
+		const row = (label, volumes, emptyText) => {
+			const details = volumes.length
+				? volumes.map((volume) => [
+					volume.device.replace('/dev/', ''),
+					volume.type,
+					formatBytes(volume.bytes),
+					volume.mount || _('Not mounted')
+				].map((part) => part || '-').join(' · '))
+				: [ emptyText ];
 
-		const body = storage.failed
-			? [ E('p', { 'class': 'cpe-card-error' }, [ _('Unable to read storage information.') ]) ]
-			: [ E('div', { 'class': 'cpe-storage' }, [
+			return E('li', { 'class': 'cpe-iface cpe-iface--storage ' + (volumes.length ? 'is-up' : 'is-idle') }, [
+				E('span', { 'class': 'cpe-iface__dot', 'aria-hidden': 'true' }),
+				E('span', { 'class': 'cpe-iface__copy' }, [
+					E('strong', {}, [ label ]),
+					details.map((detail) => E('small', {}, [ detail ]))
+				])
+			]);
+		};
+
+		return E('div', { 'class': 'cpe-iface-storage' }, [
+			E('ul', { 'class': 'cpe-iface-list' }, [
 				row(_('USB storage'), usb, _('No USB device detected')),
 				row(_('TF card'), tf, storage.mmc ? _('No card detected') : _('No card reader detected'))
-			]) ];
-
-		return this.card(_('USB and TF storage'), 'archive', body, {
-			className: 'cpe-card--storage',
-			badge: E('span', { 'class': 'cpe-badge ' + (storage.failed ? 'is-unknown' : total ? 'is-online' : 'is-unknown') }, [
-				storage.failed ? '-' : total ? _('Detected') : _('Not detected')
 			])
-		});
+		]);
 	},
 
 	renderDashboard(data) {
@@ -1105,8 +1110,7 @@ return view.extend({
 						: this.renderModem(modem, health),
 					interfacesFailed
 						? this.errorCard(_('Network interfaces'), 'network', 'cpe-card--interfaces', _('Unable to load interface status.'))
-						: this.renderInterfaces(wans, lan, devices, wansFailed),
-					this.renderStorage(storage)
+						: this.renderInterfaces(wans, lan, devices, wansFailed, storage)
 				])
 			]),
 			this.renderClients(clients, clientsFailed),

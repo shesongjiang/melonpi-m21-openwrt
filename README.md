@@ -82,24 +82,25 @@ cd melonpi-m21-openwrt
 
 ## 预编译固件
 
-最新版本：`v1.4.0-20261120`（在 `v1.3.0-20261119` 基础上新增 USB/TF 存储状态卡）
+最新版本：`v1.4.1-20261120`（把 USB/TF 状态并入网络接口卡，移除独立存储卡）
 
 | 文件 | 大小 | SHA-256 |
 |---|---|---|
-| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `8f3efea1c94410b25ed2b25d9b735e725b5829f95e5c26133780cf31e46e4824` |
+| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `07e85b247d43ed2a99b7f58f3700d695079d5b65fb50518c9bf311f02c927c5f` |
 
-- 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0/v1.2.0 相同，UI 改动不影响内核哈希）
+- 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0–v1.4.0 相同，UI 改动不影响内核哈希）
 - metadata：`new_supported_devices = ["melonpi,m21"]`、`board = "melonpi,m21"`，设备上 `sysupgrade -T` 可通过
 - 镜像内含：`luci-theme-cpe`、`luci-app-cpe-panel`、`mwan3`、`qmodem` + `luci-app-qmodem-next`、`kmod-qmi_wwan_f/q/s`、`kmod-mmc-mtk`、`kmod-usb3`；不含 wpad/hostapd/kmod-mt76/kmod-mac80211
 - USB 存储：`kmod-usb-storage`、`kmod-usb-storage-uas`、`kmod-scsi-core`、`kmod-fs-vfat`、`kmod-fs-exfat`、`kmod-nls-cp437`（依赖 `kmod-nls-iso8859-1`），支持 **FAT32 / exFAT / ext4**，**NTFS 不支持**
 - 首次启动后 rootfs_data 约 **2.19 MB**（2176 KiB）
 
-### 本版 UI 变更（v1.4.0）
+### 本版 UI 变更（v1.4.1）
 
-- 网络接口卡下方新增“USB 与 TF 存储”卡：设备名、文件系统、容量、挂载点，12px 字号。
+- USB/TF 状态并入「网络接口状态」卡：wan/lan 行下方加细分隔线，列出 USB 存储与 TF 卡两项；标题与 2/2 徽标保持不变。
+- 删除独立的“USB 与 TF 存储”卡片，避免重复；行内展示设备名、文件系统、容量、挂载点，沿用 12px 与现有行样式。
 - 无 USB 设备显示“未检测到 USB 设备”；有读卡器无卡显示“未检测到存储卡”；无读卡器显示“未检测到 TF 接口”。
 - 数据仅通过 LuCI 只读 `fs` 读取 `/proc/partitions`、`/proc/mounts`、`/sys/class/mmc_host`，不挂载、不写入、不新增软件包。
-- 新增文案已补全 zh_Hans 翻译。
+- 延续 v1.4.0：存储信息只读采集、容量自动换算、失败态兜底、新增文案 zh_Hans 翻译。
 - 延续 v1.3.0：单一总览标题、移除无线/散热 UI、接口状态卡、路由器卡下移、菜单去重、5 秒增量刷新、12px 正文与 AA 对比度、1024 无横向裁切、SVG 命名空间图标修复。
 - 若浏览器仍显示旧样式或旧图标，请**硬刷新**一次（Ctrl+F5 / 清除站点缓存）；`dashboard_network.js` 本身不带版本参数。
 
