@@ -908,7 +908,7 @@ return view.extend({
 					E('span', { 'class': 'cpe-iface__address' }, [ item.address ])
 				])
 			))
-			: [ E('p', { 'class': 'cpe-card__empty' }, [ _('No interfaces found.') ]) ];
+			: E('p', { 'class': 'cpe-card__empty' }, [ _('No interfaces found.') ]);
 
 		return this.card(_('Network interfaces'), 'network', [ body, this.renderStorageRows(storage) ], {
 			className: 'cpe-card--interfaces',
@@ -1065,9 +1065,8 @@ return view.extend({
 			return E('li', { 'class': 'cpe-iface cpe-iface--storage ' + (volumes.length ? 'is-up' : 'is-idle') }, [
 				E('span', { 'class': 'cpe-iface__dot', 'aria-hidden': 'true' }),
 				E('span', { 'class': 'cpe-iface__copy' }, [
-					E('strong', {}, [ label ]),
-					details.map((detail) => E('small', {}, [ detail ]))
-				])
+					E('strong', {}, [ label ])
+				].concat(details.map((detail) => E('small', {}, [ detail ]))))
 			]);
 		};
 

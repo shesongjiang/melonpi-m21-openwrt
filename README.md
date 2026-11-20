@@ -86,7 +86,7 @@ cd melonpi-m21-openwrt
 
 | 文件 | 大小 | SHA-256 |
 |---|---|---|
-| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `07e85b247d43ed2a99b7f58f3700d695079d5b65fb50518c9bf311f02c927c5f` |
+| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `7c50661ac96edc127ac793e750307532c60552572cd5495279ff6827e40eb824` |
 
 - 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0–v1.4.0 相同，UI 改动不影响内核哈希）
 - metadata：`new_supported_devices = ["melonpi,m21"]`、`board = "melonpi,m21"`，设备上 `sysupgrade -T` 可通过
