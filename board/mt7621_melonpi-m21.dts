@@ -138,6 +138,8 @@
 
 &sdhci {
 	status = "okay";
+	bus-width = <1>;
+	mediatek,cd-poll;
 };
 
 /delete-node/ &pcie;

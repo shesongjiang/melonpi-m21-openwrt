@@ -30,7 +30,7 @@ board_name is reported in comma form.
 
 Signed-off-by: shesongjiang <51104164+shesongjiang@users.noreply.github.com>
 ---
- .../linux/ramips/dts/mt7621_melonpi-m21.dts   | 153 ++++++++++++++++++
+ .../linux/ramips/dts/mt7621_melonpi-m21.dts   | 155 ++++++++++++++++++
  target/linux/ramips/image/mt7621.mk           |  18 +++
  .../mt7621/base-files/etc/board.d/02_network  |   1 +
  .../mt7621/base-files/lib/upgrade/platform.sh |   1 +
@@ -42,7 +42,7 @@ new file mode 100755
 index 0000000000..5339ecd593
 --- /dev/null
 +++ b/target/linux/ramips/dts/mt7621_melonpi-m21.dts
-@@ -0,0 +1,153 @@
+@@ -0,0 +1,155 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 +
 +#include "mt7621.dtsi"
@@ -183,6 +183,8 @@ index 0000000000..5339ecd593
 +
 +&sdhci {
 +	status = "okay";
++	bus-width = <1>;
++	mediatek,cd-poll;
 +};
 +
 +/delete-node/ &pcie;
