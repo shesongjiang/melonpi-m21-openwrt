@@ -17,7 +17,7 @@
 | 分区 | u-boot `0x0-0x30000`（192K）；u-boot-env `0x30000-0x40000`（64K）；factory `0x40000-0x50000`（64K）；firmware `0x50000-0x1000000`（16064K） |
 | 有线 | 1× WAN（gmac1）+ 1× LAN（MT7530 switch port 1） |
 | USB | USB 3.0（xhci，DFT 默认路径未改动） |
-| 存储卡 | microSD（sdhci） |
+| 存储卡 | microSD（sdhci，1-bit 总线 + `mediatek,cd-poll` 轮询检测，50 MHz high-speed） |
 | 无线 | 无（pcie0/1/2 均无卡，无 802.11 设备） |
 | PCIe | 无。DTS 用 `/delete-node/` 删除 PCIe 控制器、两个 PHY 及 pcie pinctrl |
 | LED | GPIO0 = `green:sys`，高电平有效；GPIO16 = `blue:power`，高电平有效 |
@@ -82,19 +82,28 @@ cd melonpi-m21-openwrt
 
 ## 预编译固件
 
-最新版本：`v1.5.1-20261120`（路由器卡显示固件版本行）
+最新版本：`v1.6.0-20261126`（TF 卡可用 + 面板存储行去重）
 
 | 文件 | 大小 | SHA-256 |
 |---|---|---|
-| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `d80b715e08cb2eb88a664bd6025489d4d4429e9b7fe0bcbc07d982b12579304e` |
+| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `a6975c0e2cbbbc0c492cfa9c1f8ed461f3c8f3a970ced8a3abef289e57d3b40a` |
 
-- 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0–v1.5.0 相同，UI 改动不影响内核哈希）
+- 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0–v1.5.1 相同，DTS/UI 改动不影响内核哈希）
 - metadata：`new_supported_devices = ["melonpi,m21"]`、`board = "melonpi,m21"`，设备上 `sysupgrade -T` 可通过
 - 镜像内含：`luci-theme-cpe`、`luci-app-cpe-panel`、`mwan3`、`qmodem` + `luci-app-qmodem-next`、`kmod-qmi_wwan_f/q/s`、`kmod-mmc-mtk`、`kmod-usb3`；不含 wpad/hostapd/kmod-mt76/kmod-mac80211
 - USB 存储：`kmod-usb-storage`、`kmod-usb-storage-uas`、`kmod-scsi-core`、`kmod-fs-vfat`、`kmod-fs-exfat`、`kmod-nls-cp437`（依赖 `kmod-nls-iso8859-1`），支持 **FAT32 / exFAT / ext4**，**NTFS 不支持**
+- TF 卡：`kmod-mmc-mtk` 驱动，1-bit 总线 + `mediatek,cd-poll`，FAT32 读写实测通过（1-bit 50 MHz 顺序读写约 5.3 / 5.7 MB/s）
 - 首次启动后 rootfs_data 约 **2.19 MB**（2176 KiB）
 
-### 本版变更（v1.5.1）
+### 本版变更（v1.6.0）
+
+- **TF（microSD）卡可用**：`&sdhci` 增加 `bus-width = <1>` 与 `mediatek,cd-poll`，保留继承的 50 MHz `max-frequency` 与 `cap-sd/mmc-highspeed`。
+- 根因定位（实机闭环）：`bus-width = <4>` 时 `mtk-msdc` 探测挂死、看门狗重启循环，降到 25 MHz legacy 仍挂；改为 1-bit 后 legacy 与 high-speed 均正常 → 问题在 4-bit 数据线（D1–D3），与高速时序无关。
+- 卡检测：本板无 CD 引脚，必须保留 `mediatek,cd-poll`（去掉后卡不会出现）。
+- 面板存储行去重：`baseOf()` 只去掉分区后缀（`mmcblk0p1 → mmcblk0`），修复 `mmcblk0` 与 `mmcblk0p1` 同时显示。
+- 未改内核与软件包清单；manifest 仅随 LuCI 包版本字符串变化。
+
+### v1.5.1 变更
 
 - 「路由器」卡空位新增「版本 / Version」行，取 `ubus call system board` 的 `release.revision`（回退 `release.version`）。
 - 样式沿用 `.cpe-facts` 的 dt/dd（13px、行高 1.4、灰色标签、分隔线），第 8 项填满 4 列网格，不增加卡片高度。
@@ -136,6 +145,7 @@ config mount
 6. 内存容量 256 MiB 由 bootloader 决定，DTS 不写死 memory 节点；更换 bootloader 参数会改变可用内存。
 7. **内核模块必须与镜像同源**：本版内核为 `6.18.60~cbfbdaf4…`，只能使用同一棵树、同一 commit（`c4c69cfe`）编译出的 kmod。官方 snapshot 的 kmod 钉在 `6.18.60~6ddfb7f4…`，其他旧镜像的 kmod 也无法匹配，均不能安装。
 8. **NTFS 不支持**：镜像只包含 vfat/exfat/ext4 驱动；如需要 NTFS，请自行编译 `kmod-fs-ntfs3` 或安装用户态 `ntfs-3g`（均未包含）。
+9. **TF 卡只能 1-bit**：本板 4-bit 总线会挂死 `mtk-msdc`（看门狗重启循环），DTS 已固定 `bus-width = <1>`，请勿改回 4-bit；卡检测依赖 `mediatek,cd-poll`，也不要去掉。
 
 ## 刷写注意事项
 
