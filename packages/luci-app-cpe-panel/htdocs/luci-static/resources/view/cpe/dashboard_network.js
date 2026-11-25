@@ -380,6 +380,12 @@ return view.extend({
 			});
 
 			const byBase = {};
+		// mmcblk0p1 -> mmcblk0, sda1 -> sda; the controller number must stay
+		// part of the mmcblk base or the disk and its partition are grouped
+		// separately and both shown.
+		const baseOf = (name) => /^mmcblk/.test(name)
+			? name.replace(/p\d+$/, '')
+			: name.replace(/\d+$/, '');
 
 			partitions.value.split('\n').forEach((line) => {
 				const fields = line.trim().split(/\s+/);
@@ -394,7 +400,7 @@ return view.extend({
 					return;
 
 				const device = '/dev/' + name;
-				const base = name.replace(/p?\d+$/, '');
+				const base = baseOf(name);
 				const target = mounted[device] || null;
 
 				if (!byBase[base])
@@ -411,7 +417,7 @@ return view.extend({
 
 			Object.values(byBase).forEach((group) => {
 				const volumes = group.length > 1
-					? group.filter((item) => item.name !== item.name.replace(/p?\d+$/, ''))
+					? group.filter((item) => item.name !== baseOf(item.name))
 					: group;
 
 				volumes.forEach((volume) => {
