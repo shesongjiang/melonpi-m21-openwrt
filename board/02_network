@@ -91,7 +91,6 @@ ramips_setup_interfaces()
 	genexis,pulse-ex400|\
 	humax,e10|\
 	keenetic,kn-3510|\
-	melonpi,m21|\
 	maginon,mc-1200ac|\
 	meig,slt866|\
 	openfi,5pro|\
@@ -102,6 +101,10 @@ ramips_setup_interfaces()
         zyxel,lte7490-m904|\
 	zyxel,nr7101)
 		ucidef_set_interfaces_lan_wan "lan" "wan"
+		;;
+	melonpi,m21)
+		ucidef_set_interface "lan" device "lan" protocol "static" ipaddr "192.168.66.1" netmask "255.255.255.0"
+		ucidef_set_interface_wan "wan"
 		;;
 	asiarf,ap7621-nv1|\
 	beeline,smartbox-flash|\

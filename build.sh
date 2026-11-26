@@ -67,6 +67,12 @@ PATCH="$REPO_DIR/board/0001-ramips-add-melonpi-m21-support.patch"
 git -C "$SRC" apply --check "$PATCH" || die "补丁无法应用，请确认 ImmortalWrt commit 未被改动"
 git -C "$SRC" apply "$PATCH"
 
+log "应用默认 LAN/自动挂载补丁 board/0002-melonpi-m21-defaults.patch"
+PATCH2="$REPO_DIR/board/0002-melonpi-m21-defaults.patch"
+[ -f "$PATCH2" ] || die "补丁不存在：$PATCH2"
+git -C "$SRC" apply --check "$PATCH2" || die "0002 补丁无法应用，请确认 ImmortalWrt commit 未被改动"
+git -C "$SRC" apply "$PATCH2"
+
 grep -q 'define Device/melonpi-m21' "$SRC/target/linux/ramips/image/mt7621.mk" \
 	|| die "补丁后未找到 Device/melonpi-m21"
 grep -q "IMAGE_SIZE := ${IMAGE_SIZE_KIB}k" "$SRC/target/linux/ramips/image/mt7621.mk" \

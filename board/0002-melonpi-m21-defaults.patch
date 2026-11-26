@@ -1,0 +1,69 @@
+From 5d3e1a5f84297ddc68ab604fbf78eef791808db3 Mon Sep 17 00:00:00 2001
+From: shesongjiang <51104164+shesongjiang@users.noreply.github.com>
+Date: Thu, 26 Nov 2026 20:39:11 +0800
+Subject: [PATCH] ramips: melonpi-m21: default LAN 192.168.66.1 and generic
+ automount
+
+---
+ .../ramips/mt7621/base-files/etc/board.d/02_network    |  5 ++++-
+ target/linux/ramips/mt7621/base-files/etc/config/fstab |  7 +++++++
+ .../mt7621/base-files/etc/uci-defaults/95-melonpi-dhcp | 10 ++++++++++
+ 3 files changed, 21 insertions(+), 1 deletion(-)
+ create mode 100644 target/linux/ramips/mt7621/base-files/etc/config/fstab
+ create mode 100755 target/linux/ramips/mt7621/base-files/etc/uci-defaults/95-melonpi-dhcp
+
+diff --git a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
+index e863a68e84..1b7e3ec9e1 100644
+--- a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
++++ b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
+@@ -91,7 +91,6 @@ ramips_setup_interfaces()
+ 	genexis,pulse-ex400|\
+ 	humax,e10|\
+ 	keenetic,kn-3510|\
+-	melonpi,m21|\
+ 	maginon,mc-1200ac|\
+ 	meig,slt866|\
+ 	openfi,5pro|\
+@@ -103,6 +102,10 @@ ramips_setup_interfaces()
+ 	zyxel,nr7101)
+ 		ucidef_set_interfaces_lan_wan "lan" "wan"
+ 		;;
++	melonpi,m21)
++		ucidef_set_interface "lan" device "lan" protocol "static" ipaddr "192.168.66.1" netmask "255.255.255.0"
++		ucidef_set_interface_wan "wan"
++		;;
+ 	asiarf,ap7621-nv1|\
+ 	beeline,smartbox-flash|\
+ 	beeline,smartbox-giga|\
+diff --git a/target/linux/ramips/mt7621/base-files/etc/config/fstab b/target/linux/ramips/mt7621/base-files/etc/config/fstab
+new file mode 100644
+index 0000000000..640751483e
+--- /dev/null
++++ b/target/linux/ramips/mt7621/base-files/etc/config/fstab
+@@ -0,0 +1,7 @@
++config 'global'
++	option	anon_swap	'0'
++	option	anon_mount	'1'
++	option	auto_swap	'0'
++	option	auto_mount	'1'
++	option	delay_root	'5'
++	option	check_fs	'0'
+diff --git a/target/linux/ramips/mt7621/base-files/etc/uci-defaults/95-melonpi-dhcp b/target/linux/ramips/mt7621/base-files/etc/uci-defaults/95-melonpi-dhcp
+new file mode 100755
+index 0000000000..e481b0ffc8
+--- /dev/null
++++ b/target/linux/ramips/mt7621/base-files/etc/uci-defaults/95-melonpi-dhcp
+@@ -0,0 +1,10 @@
++#!/bin/sh
++# MelonPi M21: LAN DHCP pool stays 100-200 (100 + 101 addresses)
++
++uci -q batch <<-EOF
++	set dhcp.lan.start='100'
++	set dhcp.lan.limit='101'
++	commit dhcp
++EOF
++
++exit 0
+-- 
+2.39.5
+

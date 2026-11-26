@@ -1105,7 +1105,7 @@ return view.extend({
 					volume.device.replace('/dev/', ''),
 					volume.type,
 					formatBytes(volume.bytes),
-					volume.mount || _('Not mounted')
+					volume.mount ? _('Mounted') + ' (' + volume.mount + ')' : _('Not mounted')
 				].map((part) => part || '-').join(' · '))
 				: [ emptyText ];
 

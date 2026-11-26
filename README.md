@@ -33,6 +33,7 @@ board/
   02_network                           # 修改后的 board.d 网络脚本
   platform.sh                          # 修改后的 sysupgrade 脚本
   0001-ramips-add-melonpi-m21-support.patch  # 带 commit message 的完整补丁（可 git apply / git am）
+  0002-melonpi-m21-defaults.patch      # 默认 LAN 192.168.66.1 / DHCP 100-200 / 通用自动挂载
   melonpi-m21-board.patch              # 纯 diff（不含邮件头）
   melonpi-m21.patch                    # 参考：qooke/openwrt 原始 16M/32M 双档补丁
 packages/
@@ -82,11 +83,11 @@ cd melonpi-m21-openwrt
 
 ## 预编译固件
 
-最新版本：`v1.6.0-20261126`（TF 卡可用 + 面板存储行去重）
+最新版本：`v1.6.1-20261126`（默认 LAN 192.168.66.1 + 通用自动挂载）
 
 | 文件 | 大小 | SHA-256 |
 |---|---|---|
-| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `a6975c0e2cbbbc0c492cfa9c1f8ed461f3c8f3a970ced8a3abef289e57d3b40a` |
+| `immortalwrt-ramips-mt7621-melonpi-m21-squashfs-sysupgrade.bin` | 14,156,325 字节（约 13.5 MiB） | `a77422ce94be3e068afb716f2233e08a4f6508ec07c8f822ad25ccdaec9d4f30` |
 
 - 内核：`6.18.60~cbfbdaf4542642d3afbc7d77f8147cb0-r1`（与 v1.1.0–v1.5.1 相同，DTS/UI 改动不影响内核哈希）
 - metadata：`new_supported_devices = ["melonpi,m21"]`、`board = "melonpi,m21"`，设备上 `sysupgrade -T` 可通过
@@ -95,7 +96,15 @@ cd melonpi-m21-openwrt
 - TF 卡：`kmod-mmc-mtk` 驱动，1-bit 总线 + `mediatek,cd-poll`，FAT32 读写实测通过（1-bit 50 MHz 顺序读写约 5.3 / 5.7 MB/s）
 - 首次启动后 rootfs_data 约 **2.19 MB**（2176 KiB）
 
-### 本版变更（v1.6.0）
+### 本版变更（v1.6.1）
+
+- **默认 LAN 改为 `192.168.66.1/24`**（DHCP 池 `192.168.66.100–200`）；`192.168.100.1/24` 保留给模组 RNDIS，避免与 LAN 冲突。实现：`board.d/02_network` 为 `melonpi,m21` 单独分支写入 `ipaddr/netmask`，首次启动由 `config_generate` 生成；DHCP 由 `uci-defaults/95-melonpi-dhcp` 设 `start=100`、`limit=101`。
+- **TF 卡 / U 盘通用自动挂载**：镜像内置默认 `/etc/config/fstab`，`anon_mount=1`、`auto_mount=1`，不写任何 UUID 或固定分区。任意卡插入（开机前已插、运行中插入、换卡）都会由 `block hotplug` 自动挂到 `/mnt/<设备名>`（如 `/mnt/mmcblk0p1`、`/mnt/sda1`），支持 vfat/FAT32、exFAT、ext4；拔卡自动卸载。
+- **不覆盖 extroot**：已挂载的 overlay 分区（如 `/overlay` 所在的 sda2）会被 `block` 跳过；启用 extroot 只需在 fstab 增加 `target /overlay` 的 mount 段（见下文），自动挂载不会重复挂载或覆盖它。
+- 面板「外部接口」存储行改为显示 **已挂载 (/mnt/xxx)**，未挂载显示「未挂载」；新增 zh_Hans 词条。
+- 实机验收：`sysupgrade -n` 后 LAN `192.168.66.1/24` 可登录、dnsmasq 生效区间 `192.168.66.100–200`、TF `/dev/mmcblk0p1` 开机自动挂到 `/mnt/mmcblk0p1`（FAT32 写读校验通过）、USB `sda1`/`sda2` 自动挂载、`/overlay` 仍为内置 mtdblock6（未被占用）；`unbind/bind 1e130000.mmc` 模拟拔插后卡自动重新挂载。
+
+### v1.6.0 变更
 
 - **TF（microSD）卡可用**：`&sdhci` 增加 `bus-width = <1>` 与 `mediatek,cd-poll`，保留继承的 50 MHz `max-frequency` 与 `cap-sd/mmc-highspeed`。
 - 根因定位（实机闭环）：`bus-width = <4>` 时 `mtk-msdc` 探测挂死、看门狗重启循环，降到 25 MHz legacy 仍挂；改为 1-bit 后 legacy 与 high-speed 均正常 → 问题在 4-bit 数据线（D1–D3），与高速时序无关。
